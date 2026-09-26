@@ -6,6 +6,7 @@ const KEYS = [
   "GOOGLE_OAUTH_CLIENT_SECRET",
   "AUTH_SECRET",
   "SUPERUSERS",
+  "DATABASE_URL",
 ] as const;
 
 let saved: Record<string, string | undefined>;
@@ -59,6 +60,14 @@ describe("env", () => {
     process.env.GOOGLE_OAUTH_CLIENT_ID = " id ";
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = "secret";
     expect(env.googleOAuth).toEqual({ clientId: "id", clientSecret: "secret" });
+  });
+
+  it("reports and requires DATABASE_URL", () => {
+    expect(env.hasDatabaseUrl).toBe(false);
+    expect(() => env.databaseUrl).toThrowError(/DATABASE_URL/);
+    process.env.DATABASE_URL = "postgres://x";
+    expect(env.hasDatabaseUrl).toBe(true);
+    expect(env.databaseUrl).toBe("postgres://x");
   });
 
   it("superusers is empty, not an error, when unset", () => {

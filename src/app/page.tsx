@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { auth, signIn, signOut } from "@/auth";
 import { QaBadge } from "@/components/QaBadge";
+import { getDb } from "@/db";
 import { env } from "@/lib/env";
+import { isProctor } from "@/lib/users/proctors";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   if (session?.user) {
     const { andrewId, role } = session.user;
+    // Superadmins are implicitly proctors. Without a database nobody else is,
+    // which matches the fallback of checking boxes in the sheet by hand.
+    const onProctorList =
+      role === "superadmin" || (env.hasDatabaseUrl && (await isProctor(getDb(), andrewId)));
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div>
@@ -45,7 +51,23 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </span>
             )}
           </dd>
+          <dt className="text-neutral-500">Proctor list</dt>
+          <dd className="text-sm">{onProctorList ? "On the list" : "Not on the list"}</dd>
         </dl>
+        {!onProctorList && (
+          <p
+            role="alert"
+            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+          >
+            Not on the proctor list: ask a head TA to add you, or check boxes in the sheet
+            directly.
+          </p>
+        )}
+        {role === "superadmin" && (
+          <Link href="/admin/users" className="text-sm underline">
+            Manage users
+          </Link>
+        )}
         <form
           action={async () => {
             "use server";

@@ -27,6 +27,8 @@ export default function Home() {
         <Status ok={env.hasGoogleOAuth} label={env.hasGoogleOAuth ? "configured" : "missing"} />
         <dt className="text-neutral-500">Auth secret</dt>
         <Status ok={env.hasAuthSecret} label={env.hasAuthSecret ? "configured" : "missing"} />
+        <dt className="text-neutral-500">Database</dt>
+        <Status ok={env.hasDatabaseUrl} label={env.hasDatabaseUrl ? "configured" : "missing"} />
         <dt className="text-neutral-500">Superusers</dt>
         <dd className="font-mono">{superusers.size} configured</dd>
       </dl>

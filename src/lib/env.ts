@@ -86,6 +86,23 @@ export const env = {
   },
 
   /**
+   * Postgres connection string for the app's own backend (proctor allowlist,
+   * later the scan log). One database per deployment; QA must never share
+   * Prod's. Set by hand from the Neon console rather than via the Vercel
+   * integration's preview branching, which would copy Prod's config into QA.
+   */
+  get databaseUrl(): string {
+    return require_(
+      "DATABASE_URL",
+      "Copy the pooled connection string for this deployment's Neon project.",
+    );
+  },
+
+  get hasDatabaseUrl(): boolean {
+    return read("DATABASE_URL") !== undefined;
+  },
+
+  /**
    * Andrew IDs of head TAs who may edit app configuration. Missing or empty
    * means nobody is a superuser, which is safe: the setup screen is read-only.
    */

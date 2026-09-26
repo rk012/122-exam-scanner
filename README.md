@@ -18,6 +18,7 @@ deployment it is (QA or Prod).
 ```sh
 pnpm install
 pnpm dev        # http://localhost:3000, runs as QA
+pnpm test       # vitest
 ```
 
 The committed `.env` sets `APP_ENV=qa`, so local dev and local builds are
@@ -29,20 +30,46 @@ APP_ENV=prod pnpm dev
 
 ## Configuration
 
-Only three things are environment-specific, and they are the only values that
-live in Vercel env vars (see `.env.example`):
+Only a handful of values are environment-specific, and they are the only
+values that live in Vercel env vars (see `.env.example` for the full list with
+comments). `src/lib/env.ts` is the single place that reads them.
 
-| Variable                 | Purpose |
-|--------------------------|---------|
-| `APP_ENV`                | `qa` or `prod`; drives the QA badge and nothing else in code |
-| `GOOGLE_OAUTH_CLIENT_ID` | OAuth client for sign-in and the Sheets write as the TA |
-| `SUPERUSERS`             | Comma-separated Andrew IDs allowed to edit the setup screen |
+| Variable                     | Purpose |
+|------------------------------|---------|
+| `APP_ENV`                    | `qa` or `prod`; drives the QA badge and nothing else in code |
+| `GOOGLE_OAUTH_CLIENT_ID`     | OAuth client for sign-in and the Sheets write as the TA |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | The matching client secret; server-only, never `NEXT_PUBLIC_` |
+| `AUTH_SECRET`                | Signs session cookies; `openssl rand -base64 32` |
+| `SUPERUSERS`                 | Comma-separated Andrew IDs allowed to edit the setup screen |
 
 Everything else is **configured in-app** by a superuser and stored in the app's
 backend: the active spreadsheet ID, rooms and timeslots, and the proctor
 allowlist. The QA deployment is not special-cased in code; a superuser just
 points it at the QA spreadsheet from the setup screen. Never add a second
 environment switch for these.
+
+Secrets are read **lazily**: a missing value does not break `next build`, it
+fails the first request that needs it with an error naming the variable. The
+home page lists which secrets are present (never their values), so after
+setting them in Vercel you can confirm the deployment picked them up.
+
+### Setting secrets in Vercel
+
+Dashboard: Project → Settings → Environment Variables. Scope each value to the
+environment it belongs to (Production for the Prod values, Preview for QA) and
+tick **Sensitive** for `GOOGLE_OAUTH_CLIENT_SECRET` and `AUTH_SECRET` so they
+cannot be read back out of the dashboard.
+
+CLI equivalent:
+
+```sh
+pnpm dlx vercel env add GOOGLE_OAUTH_CLIENT_ID production
+pnpm dlx vercel env add GOOGLE_OAUTH_CLIENT_SECRET production --sensitive
+pnpm dlx vercel env add AUTH_SECRET production --sensitive
+pnpm dlx vercel env add SUPERUSERS production
+```
+
+For local development put the same keys in `.env.local` (gitignored).
 
 ## QA vs Prod
 

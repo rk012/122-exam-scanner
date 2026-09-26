@@ -84,8 +84,11 @@ bounced back to the sign-in page with an explanation.
 - **Role** is `superadmin` when the Andrew ID is in `SUPERUSERS`, else `user`.
   It is computed on every request, so editing `SUPERUSERS` needs no re-login.
 - Sessions are stateless JWT cookies signed with `AUTH_SECRET`. No user table.
-- Scopes requested today: `openid email profile` only. The Sheets scope will be
-  added later, once the GCP app can request it.
+- Scopes: `openid email profile` plus the Sheets scope
+  (`https://www.googleapis.com/auth/spreadsheets`), with `access_type=offline`
+  and `prompt=consent` so Google issues a refresh token. Tokens live only in
+  the encrypted session cookie and are refreshed in the Auth.js `jwt` callback;
+  the app never stores them.
 
 ### One-time GCP setup (per deployment)
 
@@ -134,10 +137,42 @@ needs the new table, and again whenever a migration is added.
 
 ### Users
 
+`/admin/sheet` (superadmins only) sets the active spreadsheet and tab; saving
+first checks reachability and the TEMPLATE layout using the superadmin's own
+Google access.
+
 `/admin/users` (superadmins only) lists superadmins (read-only, from
 `SUPERUSERS`) and lets you add or remove proctors by Andrew ID. A signed-in
 account that is neither shows "Not on the proctor list" on the home page.
 Superadmins count as proctors.
+
+## Scan API
+
+Backend for scanning clients. All routes require the session cookie of a
+signed-in proctor (or superadmin) who granted the Sheets scope, and an active
+sheet set at `/admin/sheet`. Errors are `{ error, message }` with codes
+`unauthenticated` 401, `session-expired` 401, `not-a-proctor` 403,
+`sheets-access-missing` 403, `bad-request` 400, `no-active-sheet` 503,
+`not-configured` 503, `sheet-unavailable` 502.
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /api/scan/rooms` | | `{ rooms: [{ code, room, timeslot, capacity }] }` from the active tab's layout |
+| `POST /api/scan/lookup` | `{ examNumber, roomCode }` | `{ status: "match", examNumber, andrewId, room }` or `{ status: "flagged", code, flag: { title, body, action }, examNumber, belongsTo? }`. Writes nothing. |
+| `POST /api/scan/confirm` | `{ examNumber, roomCode }` | `{ status: "checked", ... }` after ticking exactly one Got paper box as the TA, or `{ status: "flagged", ... }` with nothing written |
+
+Flow: pick a room from `rooms`, `lookup` each QR, show the proctor the exam
+number and Andrew ID, and call `confirm` only when they tap ✓. `confirm`
+re-runs every check against the live sheet, so a box ticked by hand in between
+comes back as `already-collected` rather than being overwritten.
+
+Flag codes, in the order they are checked: `not-in-sheet`, `duplicate`,
+`wrong-room` (with `belongsTo`), `row-malformed`, `no-andrew-id`,
+`wrong-section`, `already-collected`. Text for each is in
+`src/lib/scan/outcome.ts`.
+
+Every lookup and confirm appends a row to `scan_events` (exam number, room, TA
+Andrew ID, action, outcome, time). Nothing reads it to make decisions.
 
 ## QA vs Prod
 

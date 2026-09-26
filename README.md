@@ -5,8 +5,9 @@ row on the check-in Google Sheet, and tick exactly one checkbox as the TA's own
 Google account. Full spec lives in the wiki under
 `projects/122-exam-checkin-scanner`.
 
-**Status:** skeleton. The only thing the app does today is render which
-deployment it is (QA or Prod).
+**Status:** skeleton. Today the app has Google sign-in restricted to Andrew
+accounts, shows whether you are a superadmin or regular user, and a
+`/status` page showing which deployment and secrets are configured.
 
 ## Stack
 
@@ -70,6 +71,38 @@ pnpm dlx vercel env add SUPERUSERS production
 ```
 
 For local development put the same keys in `.env.local` (gitignored).
+
+## Sign-in (Google OAuth)
+
+Sign-in uses [Auth.js](https://authjs.dev) with the Google provider. `src/auth.ts`
+is the whole configuration. Only verified `@andrew.cmu.edu` accounts inside the
+CMU Google Workspace (Google's `hd` claim) are allowed in; anyone else is
+bounced back to the sign-in page with an explanation.
+
+- The signed-in identity is the **Andrew ID** (email local part).
+- **Role** is `superadmin` when the Andrew ID is in `SUPERUSERS`, else `user`.
+  It is computed on every request, so editing `SUPERUSERS` needs no re-login.
+- Sessions are stateless JWT cookies signed with `AUTH_SECRET`. No user table.
+- Scopes requested today: `openid email profile` only. The Sheets scope will be
+  added later, once the GCP app can request it.
+
+### One-time GCP setup (per deployment)
+
+1. In the GCP project, **APIs & Services → OAuth consent screen**. Choose user
+   type **Internal** if the project lives in the CMU Workspace org (no test-user
+   cap, only andrew accounts). Otherwise External + Testing, which caps test
+   users at 100.
+2. **Credentials → Create credentials → OAuth client ID → Web application.**
+   Authorized redirect URI: `https://<deployment host>/api/auth/callback/google`.
+   For local dev also add `http://localhost:3000/api/auth/callback/google`.
+3. Put the client ID and secret in that deployment's env vars (see
+   Configuration above). Use a different client for QA and Prod.
+
+### Local notes
+
+`pnpm dev` trusts `localhost` automatically. If you test a production build
+locally with `pnpm start`, also set `AUTH_TRUST_HOST=true`; on Vercel this is
+implied by the `VERCEL` env var and nothing extra is needed.
 
 ## QA vs Prod
 

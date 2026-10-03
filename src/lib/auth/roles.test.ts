@@ -3,7 +3,7 @@ import { andrewIdFromEmail, isAllowedGoogleAccount, roleFor } from "./roles";
 
 describe("andrewIdFromEmail", () => {
   it("returns the lowercased local part for andrew addresses", () => {
-    expect(andrewIdFromEmail("RishiKum@andrew.cmu.edu")).toBe("rishikum");
+    expect(andrewIdFromEmail("HeadTA@andrew.cmu.edu")).toBe("headta");
     expect(andrewIdFromEmail("foo@ANDREW.CMU.EDU")).toBe("foo");
   });
   it("rejects other domains and malformed input", () => {
@@ -34,10 +34,10 @@ describe("isAllowedGoogleAccount", () => {
 });
 
 describe("roleFor", () => {
-  const supers = new Set(["rishikum"]);
+  const supers = new Set(["headta"]);
   it("is superadmin only for listed IDs, case-insensitively", () => {
-    expect(roleFor("rishikum", supers)).toBe("superadmin");
-    expect(roleFor("RISHIKUM", supers)).toBe("superadmin");
+    expect(roleFor("headta", supers)).toBe("superadmin");
+    expect(roleFor("HEADTA", supers)).toBe("superadmin");
     expect(roleFor("someone", supers)).toBe("user");
     expect(roleFor("someone", new Set())).toBe("user");
   });

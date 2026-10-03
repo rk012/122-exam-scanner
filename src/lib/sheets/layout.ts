@@ -8,10 +8,14 @@
  * header pattern rather than assuming a fixed column stride, so a tab whose
  * layout drifted from TEMPLATE is reported instead of silently misread.
  *
+ * There is no separate notion of time: a room is a (room name, timeslot)
+ * pair, so the same physical room at two times is two rooms. The
+ * accommodations ("Accom") block is skipped entirely, like Makeup.
+ *
  * Nothing in rows 1-6 is student data.
  */
 
-import { columnLetter } from "./a1";
+import { columnLetter } from "./api";
 
 export const HEADER_ROW = 6;
 export const FIRST_DATA_ROW = 7;
@@ -19,18 +23,13 @@ export const FIRST_DATA_ROW = 7;
 export interface RoomBlock {
   /** Position left to right, 0-based. */
   index: number;
-  /** e.g. "DH 2210", "Accom". */
+  /** Room name and timeslot, e.g. "DH 2210, 7:00 - 7:35pm". */
   room: string;
-  /** e.g. "A1", "D1". */
+  /** e.g. "A1". */
   code: string;
-  /** e.g. "7:00 - 7:35pm". */
-  timeslot: string;
   capacity: number | null;
-  /**
-   * Sections this room proctors. `null` when the sheet shows none (#N/A).
-   * `"various"` for the accommodations block, which takes any section.
-   */
-  sections: string[] | "various" | null;
+  /** Sections this room proctors. `null` when the sheet shows none (#N/A). */
+  sections: string[] | null;
   /** 0-based column indices of the columns the app is allowed to read. */
   columns: {
     andrewId: number;
@@ -74,8 +73,7 @@ function parseSections(raw: string): RoomBlock["sections"] {
   const m = /^sections:\s*(.*)$/i.exec(raw);
   if (!m) return null;
   const body = m[1].trim();
-  if (body === "" ) return null;
-  if (/^\(?various\)?$/i.test(body)) return "various";
+  if (body === "") return null;
   return body
     .split(",")
     .map((s) => s.trim())
@@ -134,6 +132,7 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
     const has = (h: string) => run.headers.includes(h);
     const isCheckin = has("exam #") || has("got paper") || has("first name");
     if (!isCheckin) continue; // e.g. the Makeup block: Andrew id, Section, Cause, ...
+    if (/^accom\b/i.test(at(2, run.start))) continue; // accommodations are handled outside the app
 
     const colOf = (h: string): number | undefined => {
       const i = run.headers.indexOf(h);
@@ -159,10 +158,10 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
       });
     }
 
-    const room = at(2, firstCol);
+    const name = at(2, firstCol);
     const code = at(2, firstCol + 2);
     const timeslot = at(2, firstCol + 3);
-    if (room === "") {
+    if (name === "") {
       problems.push({ col: firstCol, message: `block at column ${columnLetter(firstCol)} has no room name in row 2` });
     }
     if (code === "") {
@@ -188,9 +187,8 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
 
     blocks.push({
       index: blocks.length,
-      room,
+      room: `${name}, ${timeslot}`,
       code,
-      timeslot,
       capacity,
       sections,
       columns: {
@@ -208,13 +206,15 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
   if (blocks.length === 0 && problems.length === 0) {
     problems.push({ message: "no check-in room blocks found in row 6" });
   }
-  const codes = new Map<string, number>();
-  for (const b of blocks) {
-    if (b.code === "") continue;
-    const prev = codes.get(b.code);
-    if (prev !== undefined) {
-      problems.push({ col: b.firstCol, message: `room code ${b.code} appears twice (columns ${columnLetter(blocks[prev].firstCol)} and ${columnLetter(b.firstCol)})` });
-    } else codes.set(b.code, b.index);
+  for (const [what, key] of [["room code", (b: RoomBlock) => b.code], ["room", (b: RoomBlock) => b.room]] as const) {
+    const seen = new Map<string, number>();
+    for (const b of blocks) {
+      if (key(b) === "") continue;
+      const prev = seen.get(key(b));
+      if (prev !== undefined) {
+        problems.push({ col: b.firstCol, message: `${what} ${key(b)} appears twice (columns ${columnLetter(blocks[prev].firstCol)} and ${columnLetter(b.firstCol)})` });
+      } else seen.set(key(b), b.index);
+    }
   }
 
   return { ok: problems.length === 0 && blocks.length > 0, blocks, problems };

@@ -1,98 +1,105 @@
 /**
- * In-memory SheetsApi for tests. Understands the A1 shapes this module
- * produces: `'Tab'!1:6`, `'Tab'!C7:E`, `'Tab'!G12`, `'Tab'!A1:B2`.
+ * In-memory SheetsApi for tests, seeded from a CSV export of a tab.
+ *
+ * CSV cells are typed the way Sheets would store them with UNFORMATTED_VALUE:
+ * TRUE/FALSE are booleans, numerals are numbers, and a leading `'` forces
+ * text (`'201` is the string "201"), as typing it into Sheets does.
  */
-import type { CellValue, SheetsApi, ValueRange } from "../api";
-import { columnIndex } from "../a1";
+import { readFileSync } from "node:fs";
+import type { CellValue, SheetRange, SheetsApi } from "../api";
 
 export type Grid = CellValue[][];
 
 export interface FakeSheetsApi extends SheetsApi {
   grids: Map<string, Grid>;
-  calls: Array<{ op: "batchGet"; spreadsheetId: string; ranges: string[] } | { op: "update"; spreadsheetId: string; range: string; values: CellValue[][] }>;
-  cell(tab: string, col: number, row: number): CellValue | undefined;
+  calls: Array<
+    | { op: "batchGet"; spreadsheetId: string; ranges: SheetRange[] }
+    | { op: "update"; spreadsheetId: string; range: SheetRange; values: CellValue[][] }
+  >;
 }
 
-interface ParsedRange {
-  tab: string;
-  c1: number;
-  r1: number;
-  c2: number | null; // null = to last column
-  r2: number | null; // null = to last row
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  const endField = () => {
+    row.push(field);
+    field = "";
+  };
+  const endRow = () => {
+    endField();
+    rows.push(row);
+    row = [];
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') field += text[++i];
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") endField();
+    else if (ch === "\n") endRow();
+    else if (ch !== "\r") field += ch;
+  }
+  if (field !== "" || row.length) endRow();
+  return rows;
 }
 
-function parseRange(range: string): ParsedRange {
-  const m = /^'((?:[^']|'')*)'!(.+)$/.exec(range);
-  if (!m) throw new Error(`fake api: unquoted or malformed range ${range}`);
-  const tab = m[1].replace(/''/g, "'");
-  const ref = m[2];
-  const whole = /^(\d+):(\d+)$/.exec(ref);
-  if (whole) return { tab, c1: 0, r1: Number(whole[1]), c2: null, r2: Number(whole[2]) };
-  const cols = /^([A-Z]+)(\d*):([A-Z]+)(\d*)$/.exec(ref);
-  if (cols) {
-    return {
-      tab,
-      c1: columnIndex(cols[1]),
-      r1: cols[2] ? Number(cols[2]) : 1,
-      c2: columnIndex(cols[3]),
-      r2: cols[4] ? Number(cols[4]) : null,
-    };
-  }
-  const single = /^([A-Z]+)(\d+)$/.exec(ref);
-  if (single) {
-    const c = columnIndex(single[1]);
-    const r = Number(single[2]);
-    return { tab, c1: c, r1: r, c2: c, r2: r };
-  }
-  throw new Error(`fake api: unsupported range ${ref}`);
+function typed(s: string): CellValue {
+  if (s === "TRUE") return true;
+  if (s === "FALSE") return false;
+  if (s.startsWith("'")) return s.slice(1);
+  if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  return s;
+}
+
+export function gridFromCsv(path: string | URL): Grid {
+  return parseCsv(readFileSync(path, "utf8")).map((r) => r.map(typed));
 }
 
 export function createFakeSheetsApi(grids: Record<string, Grid>): FakeSheetsApi {
   const store = new Map(Object.entries(grids));
   const calls: FakeSheetsApi["calls"] = [];
 
-  function slice(p: ParsedRange): CellValue[][] {
-    const grid = store.get(p.tab);
-    if (!grid) throw new Error(`fake api: no tab ${p.tab}`);
-    const lastRow = p.r2 ?? grid.length;
+  function tabGrid(tab: string): Grid {
+    const grid = store.get(tab);
+    if (!grid) throw new Error(`fake api: no tab ${tab}`);
+    return grid;
+  }
+
+  function slice({ tab, rows: [r1, r2], cols }: SheetRange): CellValue[][] {
+    const grid = tabGrid(tab);
     const out: CellValue[][] = [];
-    for (let r = p.r1; r <= lastRow; r++) {
+    for (let r = r1; r <= (r2 ?? grid.length); r++) {
       const row = grid[r - 1] ?? [];
-      const lastCol = p.c2 ?? row.length - 1;
+      const [c1, c2] = cols ?? [0, row.length - 1];
       const cells: CellValue[] = [];
-      for (let c = p.c1; c <= lastCol; c++) cells.push(row[c] ?? "");
+      for (let c = c1; c <= c2; c++) cells.push(row[c] ?? "");
       // Google trims trailing empty cells per row and trailing empty rows.
-      while (cells.length && (cells[cells.length - 1] === "" || cells[cells.length - 1] === null)) cells.pop();
+      while (cells.length && (cells.at(-1) === "" || cells.at(-1) === null)) cells.pop();
       out.push(cells);
     }
-    while (out.length && out[out.length - 1].length === 0) out.pop();
+    while (out.length && out.at(-1)!.length === 0) out.pop();
     return out;
   }
 
   return {
     grids: store,
     calls,
-    cell(tab, col, row) {
-      return store.get(tab)?.[row - 1]?.[col];
-    },
     async batchGet(spreadsheetId, ranges) {
-      calls.push({ op: "batchGet", spreadsheetId, ranges: [...ranges] });
-      return ranges.map<ValueRange>((range) => {
-        const values = slice(parseRange(range));
-        return values.length ? { range, values } : { range };
-      });
+      calls.push({ op: "batchGet", spreadsheetId, ranges });
+      return ranges.map(slice);
     },
     async update(spreadsheetId, range, values) {
       calls.push({ op: "update", spreadsheetId, range, values });
-      const p = parseRange(range);
-      const grid = store.get(p.tab);
-      if (!grid) throw new Error(`fake api: no tab ${p.tab}`);
+      const grid = tabGrid(range.tab);
+      const c1 = range.cols?.[0] ?? 0;
       values.forEach((cells, i) => {
-        const r = p.r1 - 1 + i;
+        const r = range.rows[0] - 1 + i;
         grid[r] ??= [];
-        cells.forEach((v, j) => {
-          grid[r][p.c1 + j] = v;
-        });
+        cells.forEach((v, j) => (grid[r][c1 + j] = v));
       });
     },
   };

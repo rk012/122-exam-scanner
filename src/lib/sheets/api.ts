@@ -2,20 +2,61 @@
  * Minimal Google Sheets REST v4 client. Only the two calls this app needs.
  * Everything above this layer talks to the `SheetsApi` interface so tests can
  * substitute an in-memory grid.
+ *
+ * Callers address cells by index, never by A1 string: column indices are
+ * 0-based (0 = A); sheet rows are 1-based, matching what Google shows. A1
+ * notation is built here, at the HTTP boundary, and nowhere else.
  */
 
 export type CellValue = string | number | boolean | null;
 
-export interface ValueRange {
-  range: string;
-  values?: CellValue[][];
+/** A rectangle on one tab. End bounds are inclusive. */
+export interface SheetRange {
+  tab: string;
+  /** `[first, last]` sheet rows. Omit `last` to read to the bottom of the sheet. */
+  rows: [first: number, last?: number];
+  /** `[first, last]` column indices. Omit for every column. */
+  cols?: [first: number, last: number];
 }
 
 export interface SheetsApi {
-  /** values.batchGet. Returns one ValueRange per requested range, in order. */
-  batchGet(spreadsheetId: string, ranges: string[]): Promise<ValueRange[]>;
+  /**
+   * values.batchGet. Returns one grid per requested range, in order. Like
+   * Google, trailing empty cells and rows are trimmed, so a grid may be
+   * ragged or empty.
+   */
+  batchGet(spreadsheetId: string, ranges: SheetRange[]): Promise<CellValue[][][]>;
   /** values.update with RAW input. Writes exactly the given grid at `range`. */
-  update(spreadsheetId: string, range: string, values: CellValue[][]): Promise<void>;
+  update(spreadsheetId: string, range: SheetRange, values: CellValue[][]): Promise<void>;
+}
+
+/** 0 -> "A", 25 -> "Z", 26 -> "AA". */
+export function columnLetter(index: number): string {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new RangeError(`column index must be a non-negative integer, got ${index}`);
+  }
+  let n = index + 1;
+  let out = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+/** `'Tab'!1:6`, `'Tab'!C7:E`, `'Tab'!G12`. Tab names are always quoted. */
+export function toA1({ tab, rows: [r1, r2], cols }: SheetRange): string {
+  let ref: string;
+  if (!cols) {
+    if (r2 === undefined) throw new RangeError("a range over every column needs a last row");
+    ref = `${r1}:${r2}`;
+  } else if (r1 === r2 && cols[0] === cols[1]) {
+    ref = `${columnLetter(cols[0])}${r1}`;
+  } else {
+    ref = `${columnLetter(cols[0])}${r1}:${columnLetter(cols[1])}${r2 ?? ""}`;
+  }
+  return `'${tab.replace(/'/g, "''")}'!${ref}`;
 }
 
 export class SheetsApiError extends Error {
@@ -66,14 +107,14 @@ export function createGoogleSheetsApi(opts: GoogleSheetsApiOptions): SheetsApi {
   return {
     async batchGet(spreadsheetId, ranges) {
       const params = new URLSearchParams();
-      for (const r of ranges) params.append("ranges", r);
+      for (const r of ranges) params.append("ranges", toA1(r));
       // UNFORMATTED_VALUE so checkbox cells come back as booleans and numbers
       // as numbers; text stays text.
       params.set("valueRenderOption", "UNFORMATTED_VALUE");
       const url = `${base}/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params}`;
       const res = await doFetch(url, { headers: await headers() });
       if (!res.ok) throw await describeFailure(res);
-      const body = (await res.json()) as { valueRanges?: ValueRange[] };
+      const body = (await res.json()) as { valueRanges?: Array<{ values?: CellValue[][] }> };
       const got = body.valueRanges ?? [];
       if (got.length !== ranges.length) {
         throw new SheetsApiError(
@@ -81,16 +122,17 @@ export function createGoogleSheetsApi(opts: GoogleSheetsApiOptions): SheetsApi {
           res.status,
         );
       }
-      return got;
+      return got.map((vr) => vr.values ?? []);
     },
 
     async update(spreadsheetId, range, values) {
+      const a1 = toA1(range);
       const params = new URLSearchParams({ valueInputOption: "RAW" });
-      const url = `${base}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?${params}`;
+      const url = `${base}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(a1)}?${params}`;
       const res = await doFetch(url, {
         method: "PUT",
         headers: await headers(),
-        body: JSON.stringify({ range, majorDimension: "ROWS", values }),
+        body: JSON.stringify({ range: a1, majorDimension: "ROWS", values }),
       });
       if (!res.ok) throw await describeFailure(res);
     },

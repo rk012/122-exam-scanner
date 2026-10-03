@@ -4,8 +4,7 @@
  * here ever requests a student's name, seat, or notes.
  */
 
-import { cellRange, columnIndex, columnRange, rowRange } from "./a1";
-import type { CellValue, SheetsApi } from "./api";
+import { toA1, type CellValue, type SheetRange, type SheetsApi } from "./api";
 import { describeLayout, FIRST_DATA_ROW, HEADER_ROW, parseLayout, type LayoutResult, type RoomBlock } from "./layout";
 
 export class SpreadsheetNotAllowedError extends Error {
@@ -40,6 +39,7 @@ export type ExamLookup =
   | { kind: "duplicate"; rows: CheckinRow[] };
 
 export type SetGotPaperResult =
+  /** `range` is the written cell in A1 notation, for logs. */
   | { kind: "written"; range: string }
   | { kind: "refused"; reason: "already-collected" | "row-changed"; detail: string };
 
@@ -95,21 +95,22 @@ function cellToBool(v: CellValue | undefined): boolean {
   return false;
 }
 
-/** Groups the permitted columns of a block into contiguous A1 ranges. */
-export function dataRangesFor(tab: string, block: RoomBlock): string[] {
+/** Groups the permitted columns of a block into contiguous open-ended ranges. */
+export function dataRangesFor(tab: string, block: RoomBlock): SheetRange[] {
   const cols = [...new Set(Object.values(block.columns))].sort((a, b) => a - b);
-  const ranges: string[] = [];
+  const ranges: SheetRange[] = [];
   let start = cols[0];
   let prev = cols[0];
+  const push = () => ranges.push({ tab, rows: [block.firstDataRow], cols: [start, prev] });
   for (const c of cols.slice(1)) {
     if (c === prev + 1) {
       prev = c;
       continue;
     }
-    ranges.push(columnRange(tab, start, prev, block.firstDataRow));
+    push();
     start = prev = c;
   }
-  ranges.push(columnRange(tab, start, prev, block.firstDataRow));
+  push();
   return ranges;
 }
 
@@ -122,8 +123,8 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
   let layoutCache: LayoutResult | null = null;
 
   async function fetchLayout(): Promise<LayoutResult> {
-    const [header] = await api.batchGet(spreadsheetId, [rowRange(tab, 1, HEADER_ROW)]);
-    const layout = parseLayout(header.values ?? []);
+    const [header] = await api.batchGet(spreadsheetId, [{ tab, rows: [1, HEADER_ROW] }]);
+    const layout = parseLayout(header);
     layoutCache = layout;
     return layout;
   }
@@ -157,9 +158,8 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
       // Reassemble a sparse column->value map per row from this block's ranges.
       const perRow = new Map<number, Map<number, CellValue>>();
       for (const range of ranges) {
-        const vr = results[cursor++];
-        const firstCol = firstColOfRange(range);
-        (vr.values ?? []).forEach((cells, i) => {
+        const firstCol = range.cols![0];
+        results[cursor++].forEach((cells, i) => {
           const rowNumber = block.firstDataRow + i;
           let m = perRow.get(rowNumber);
           if (!m) perRow.set(rowNumber, (m = new Map()));
@@ -187,10 +187,11 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
 
   async function setGotPaper(row: CheckinRow, value: boolean): Promise<SetGotPaperResult> {
     const { block, rowNumber } = row;
-    const examCell = cellRange(tab, block.columns.examNumber, rowNumber);
-    const boxCell = cellRange(tab, block.columns.gotPaper, rowNumber);
+    const cell = (col: number): SheetRange => ({ tab, rows: [rowNumber, rowNumber], cols: [col, col] });
+    const examCell = cell(block.columns.examNumber);
+    const boxCell = cell(block.columns.gotPaper);
     const [examNow, boxNow] = await api.batchGet(spreadsheetId, [examCell, boxCell]);
-    const examNumberNow = normalizeExamNumber(examNow.values?.[0]?.[0]);
+    const examNumberNow = normalizeExamNumber(examNow[0]?.[0]);
     if (examNumberNow !== row.examNumber) {
       return {
         kind: "refused",
@@ -198,12 +199,12 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
         detail: `row ${rowNumber} now holds exam ${examNumberNow ?? "(blank)"}, expected ${row.examNumber ?? "(blank)"}`,
       };
     }
-    const current = cellToBool(boxNow.values?.[0]?.[0]);
+    const current = cellToBool(boxNow[0]?.[0]);
     if (value && current) {
       return { kind: "refused", reason: "already-collected", detail: `row ${rowNumber} is already checked` };
     }
     await api.update(spreadsheetId, boxCell, [[value]]);
-    return { kind: "written", range: boxCell };
+    return { kind: "written", range: toA1(boxCell) };
   }
 
   async function inspect(): Promise<InspectResult> {
@@ -217,13 +218,6 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
   }
 
   return { spreadsheetId, tab, inspect, loadRows, findExam, setGotPaper };
-}
-
-/** 0-based index of the first column in an A1 range like `'Tab'!C7:E`. */
-function firstColOfRange(range: string): number {
-  const m = /!([A-Z]+)\d*(?::|$)/.exec(range);
-  if (!m) throw new Error(`cannot parse range ${range}`);
-  return columnIndex(m[1]);
 }
 
 export { FIRST_DATA_ROW };

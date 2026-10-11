@@ -4,8 +4,15 @@
  * here ever requests a student's name, seat, or notes.
  */
 
-import { toA1, type CellValue, type SheetRange, type SheetsApi } from "./api";
-import { describeLayout, FIRST_DATA_ROW, HEADER_ROW, parseLayout, type LayoutResult, type RoomBlock } from "./layout";
+import { columnLetter, toA1, type CellValue, type SheetRange, type SheetsApi } from "./api";
+import {
+  describeLayout,
+  HEADER_ROW,
+  normalizeHeader,
+  parseLayout,
+  type LayoutResult,
+  type RoomBlock,
+} from "./layout";
 
 export class SpreadsheetNotAllowedError extends Error {
   constructor(public readonly spreadsheetId: string) {
@@ -41,7 +48,7 @@ export type ExamLookup =
 export type SetGotPaperResult =
   /** `range` is the written cell in A1 notation, for logs. */
   | { kind: "written"; range: string }
-  | { kind: "refused"; reason: "already-collected" | "row-changed"; detail: string };
+  | { kind: "refused"; reason: "already-collected" | "row-changed" | "layout-changed"; detail: string };
 
 export type InspectResult =
   | { reachable: true; layout: LayoutResult; summary: string }
@@ -61,14 +68,17 @@ export interface CheckinSheet {
   readonly tab: string;
   /** Reachability + layout check for the setup screen. Never throws for API failures. */
   inspect(): Promise<InspectResult>;
-  /** Every student row across every room block, reading only the permitted columns. */
-  loadRows(): Promise<CheckinRow[]>;
-  /** Exact-match lookup over the whole tab, with duplicate detection. */
+  /**
+   * Exact-match lookup over the whole tab, with duplicate detection. Answers
+   * from the row cache when it is fresh; a miss refreshes it once before
+   * reporting not-found.
+   */
   findExam(examNumber: string): Promise<ExamLookup>;
   /**
-   * Writes exactly one cell: the row's "Got paper" checkbox. Re-reads the row
-   * first and refuses if the box is already TRUE (when setting TRUE) or the
-   * exam number no longer matches (sheet edited underneath us).
+   * Writes exactly one cell: the row's "Got paper" checkbox. In the same
+   * single read beforehand it checks the column headers and the row, and
+   * refuses if the columns moved, the exam number no longer matches (sheet
+   * edited underneath us), or the box is already TRUE when setting TRUE.
    */
   setGotPaper(row: CheckinRow, value: boolean): Promise<SetGotPaperResult>;
 }
@@ -114,24 +124,32 @@ export function dataRangesFor(tab: string, block: RoomBlock): SheetRange[] {
   return ranges;
 }
 
+/**
+ * Layout and rows per spreadsheet tab, shared by every CheckinSheet in this
+ * process whichever TA's token fetched them (all TAs see the same sheet).
+ * Columns are assumed not to move during an exam, so the layout is read once;
+ * setGotPaper's header check is the backstop if they do.
+ */
+const knownLayouts = new Map<string, LayoutResult>();
+const knownRows = new Map<string, { rows: CheckinRow[]; fetchedAt: number }>();
+
+/** How long cached rows answer lookups before the next lookup re-reads them. */
+export const ROW_CACHE_TTL_MS = 60_000;
+
 export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
   const allowed = new Set(opts.allowedSpreadsheetIds);
   if (!allowed.has(opts.spreadsheetId)) {
     throw new SpreadsheetNotAllowedError(opts.spreadsheetId);
   }
   const { api, spreadsheetId, tab } = opts;
-  let layoutCache: LayoutResult | null = null;
+  const key = `${spreadsheetId}\n${tab}`;
 
   async function fetchLayout(): Promise<LayoutResult> {
     const [header] = await api.batchGet(spreadsheetId, [{ tab, rows: [1, HEADER_ROW] }]);
     const layout = parseLayout(header);
-    layoutCache = layout;
-    return layout;
-  }
-
-  async function ensureLayout(): Promise<LayoutResult> {
-    const layout = layoutCache ?? (await fetchLayout());
-    if (!layout.ok) throw new LayoutMismatchError(layout);
+    // Only a matching layout is kept, so a fixed sheet is picked up on the next lookup.
+    if (layout.ok) knownLayouts.set(key, layout);
+    else knownLayouts.delete(key);
     return layout;
   }
 
@@ -146,12 +164,7 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     };
   }
 
-  async function loadRows(): Promise<CheckinRow[]> {
-    const layout = await ensureLayout();
-    const plan = layout.blocks.map((block) => ({ block, ranges: dataRangesFor(tab, block) }));
-    const allRanges = plan.flatMap((p) => p.ranges);
-    const results = await api.batchGet(spreadsheetId, allRanges);
-
+  function rowsFrom(plan: Array<{ block: RoomBlock; ranges: SheetRange[] }>, results: CellValue[][][]): CheckinRow[] {
     const rows: CheckinRow[] = [];
     let cursor = 0;
     for (const { block, ranges } of plan) {
@@ -176,23 +189,66 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     return rows;
   }
 
+  /** Every student row across every room block, reading only the permitted columns. Refreshes the row cache. */
+  async function loadRows(): Promise<CheckinRow[]> {
+    const layout = knownLayouts.get(key) ?? (await fetchLayout());
+    if (!layout.ok) throw new LayoutMismatchError(layout);
+    const plan = layout.blocks.map((block) => ({ block, ranges: dataRangesFor(tab, block) }));
+    const rows = rowsFrom(plan, await api.batchGet(spreadsheetId, plan.flatMap((p) => p.ranges)));
+    knownRows.set(key, { rows, fetchedAt: Date.now() });
+    return rows;
+  }
+
   async function findExam(examNumber: string): Promise<ExamLookup> {
     const wanted = normalizeExamNumber(examNumber);
     if (wanted === null) return { kind: "not-found" };
-    const matches = (await loadRows()).filter((r) => r.examNumber === wanted);
-    if (matches.length === 0) return { kind: "not-found" };
-    if (matches.length === 1) return { kind: "found", row: matches[0] };
-    return { kind: "duplicate", rows: matches };
+    const lookup = (rows: CheckinRow[]): ExamLookup => {
+      // Copies, so callers can't edit the cache.
+      const matches = rows.filter((r) => r.examNumber === wanted).map((r) => ({ ...r }));
+      if (matches.length === 0) return { kind: "not-found" };
+      if (matches.length === 1) return { kind: "found", row: matches[0] };
+      return { kind: "duplicate", rows: matches };
+    };
+    const cached = knownRows.get(key);
+    if (cached !== undefined && Date.now() - cached.fetchedAt < ROW_CACHE_TTL_MS) {
+      // Only a clean hit is answered from cache. Any error (missing, duplicate,
+      // already checked) may be stale, so it is confirmed against the sheet.
+      const hit = lookup(cached.rows);
+      if (hit.kind === "found" && !hit.row.gotPaper) return hit;
+    }
+    return lookup(await loadRows());
+  }
+
+  /** Keeps the cached copy of a row in step with a write we just made. */
+  function recordGotPaper(row: CheckinRow, value: boolean): void {
+    const cached = knownRows.get(key)?.rows.find((r) => r.block.code === row.block.code && r.rowNumber === row.rowNumber);
+    if (cached) cached.gotPaper = value;
   }
 
   async function setGotPaper(row: CheckinRow, value: boolean): Promise<SetGotPaperResult> {
     const { block, rowNumber } = row;
-    const cell = (col: number): SheetRange => ({ tab, rows: [rowNumber, rowNumber], cols: [col, col] });
-    const examCell = cell(block.columns.examNumber);
-    const boxCell = cell(block.columns.gotPaper);
-    const [examNow, boxNow] = await api.batchGet(spreadsheetId, [examCell, boxCell]);
+    const { examNumber: examCol, gotPaper: boxCol } = block.columns;
+    const cell = (r: number, col: number): SheetRange => ({ tab, rows: [r, r], cols: [col, col] });
+    const boxCell = cell(rowNumber, boxCol);
+    // One read: both column headers plus the row's exam number and checkbox.
+    const [examHeader, boxHeader, examNow, boxNow] = await api.batchGet(spreadsheetId, [
+      cell(HEADER_ROW, examCol),
+      cell(HEADER_ROW, boxCol),
+      cell(rowNumber, examCol),
+      boxCell,
+    ]);
+    if (normalizeHeader(examHeader[0]?.[0]) !== "exam #" || normalizeHeader(boxHeader[0]?.[0]) !== "got paper") {
+      knownLayouts.delete(key);
+      knownRows.delete(key);
+      return {
+        kind: "refused",
+        reason: "layout-changed",
+        detail: `columns ${columnLetter(examCol)} and ${columnLetter(boxCol)} are no longer "Exam #" and "Got paper"`,
+      };
+    }
     const examNumberNow = normalizeExamNumber(examNow[0]?.[0]);
     if (examNumberNow !== row.examNumber) {
+      knownRows.delete(key);
       return {
         kind: "refused",
         reason: "row-changed",
@@ -201,9 +257,11 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     }
     const current = cellToBool(boxNow[0]?.[0]);
     if (value && current) {
+      knownRows.delete(key);
       return { kind: "refused", reason: "already-collected", detail: `row ${rowNumber} is already checked` };
     }
     await api.update(spreadsheetId, boxCell, [[value]]);
+    recordGotPaper(row, value);
     return { kind: "written", range: toA1(boxCell) };
   }
 
@@ -217,7 +275,5 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     }
   }
 
-  return { spreadsheetId, tab, inspect, loadRows, findExam, setGotPaper };
+  return { spreadsheetId, tab, inspect, findExam, setGotPaper };
 }
-
-export { FIRST_DATA_ROW };

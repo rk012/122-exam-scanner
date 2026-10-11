@@ -149,6 +149,17 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
       });
       continue;
     }
+    // colOf takes the first match, so a repeated header would silently pick one of the copies.
+    const repeated = REQUIRED_HEADERS.filter((h) => run.headers.indexOf(h) !== run.headers.lastIndexOf(h));
+    if (repeated.length > 0) {
+      problems.push({
+        col: run.start,
+        message: `block starting at column ${columnLetter(run.start)} repeats header(s): ${repeated
+          .map((m) => JSON.stringify(m))
+          .join(", ")}`,
+      });
+      continue;
+    }
     const firstCol = run.start;
     const lastCol = run.start + run.headers.length - 1;
     if (run.headers[run.headers.length - 1] !== "notes") {

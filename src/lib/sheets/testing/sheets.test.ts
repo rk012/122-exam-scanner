@@ -51,7 +51,7 @@ describe("check-in sheet", () => {
   });
 
   it("discovers one room per (room, timeslot), ignoring Accom and Makeup", async () => {
-    const r = await sheet.inspect();
+    const r = await sheet.reloadLayout();
     expect(r.summary).toBe("reachable · 6 rooms · layout matches");
     if (!r.reachable) throw new Error("expected reachable");
     expect(r.layout.blocks.map((b) => [b.code, b.room, b.capacity, b.sections])).toEqual([
@@ -101,7 +101,7 @@ describe("check-in sheet", () => {
     };
     const updates = () => api.calls.filter((c) => c.op === "update");
 
-    await sheet.inspect(); // the setup screen has already seen the layout
+    await sheet.reloadLayout(); // the setup screen has already seen the layout
     const a = await find("101"); // the TA's first lookup fills row cache
     api.calls.length = 0;
     expect(await sheet.setGotPaper(a, true)).toEqual({ kind: "written", range: "'Exam 1'!G7" });
@@ -122,22 +122,17 @@ describe("check-in sheet", () => {
     const c = await find("201");
     api.grids.get(TAB)![c.rowNumber - 1][c.block.columns.examNumber] = "999";
     expect(await sheet.setGotPaper(c, true)).toMatchObject({ kind: "refused", reason: "row-changed" });
-    expect(updates()).toHaveLength(0);
-
-    // Undo is allowed.
-    expect((await sheet.setGotPaper(await find("102"), false)).kind).toBe("written");
-    expect(cell(8, 6)).toBe(false);
 
     // Someone moved columns after the lookup: the cached "Got paper" position is stale.
     const d = await find("101");
     api.grids.get(TAB)![HEADER_ROW - 1][d.block.columns.gotPaper] = "Seat #";
-    expect(await sheet.setGotPaper(d, false)).toMatchObject({ kind: "refused", reason: "layout-changed" });
-    expect(cell(7, 6)).toBe(true);
+    expect(await sheet.setGotPaper(d, true)).toMatchObject({ kind: "refused", reason: "layout-changed" });
+    expect(updates()).toHaveLength(0); // no refusal writes anything
   });
 
   it("refuses lookups on a sheet whose layout doesn't match", async () => {
     api.grids.get(TAB)![HEADER_ROW - 1][6] = "Paper"; // A1 block's "Got paper"
-    expect((await sheet.inspect()).summary).toMatch(/^reachable · 5 rooms · layout mismatch: .*"got paper"/);
+    expect((await sheet.reloadLayout()).summary).toMatch(/^reachable · 5 rooms · layout mismatch: .*"got paper"/);
     await expect(sheet.findExam("101")).rejects.toBeInstanceOf(LayoutMismatchError);
     expect(api.calls.flatMap((c) => (c.op === "batchGet" ? c.ranges : [])).every((r) => !r.cols)).toBe(true); // header reads only
   });

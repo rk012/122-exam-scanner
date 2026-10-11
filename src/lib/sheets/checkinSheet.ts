@@ -28,6 +28,7 @@ export class LayoutMismatchError extends Error {
   }
 }
 
+/** Row data for each entered exam in the spreadsheet */
 export interface CheckinRow {
   block: RoomBlock;
   /** 1-based sheet row, as Google displays it. */
@@ -50,7 +51,7 @@ export type SetGotPaperResult =
   | { kind: "written"; range: string }
   | { kind: "refused"; reason: "already-collected" | "row-changed" | "layout-changed"; detail: string };
 
-export type InspectResult =
+export type ReloadLayoutResult =
   | { reachable: true; layout: LayoutResult; summary: string }
   | { reachable: false; error: string; summary: string };
 
@@ -66,8 +67,12 @@ export interface OpenCheckinSheetOptions {
 export interface CheckinSheet {
   readonly spreadsheetId: string;
   readonly tab: string;
-  /** Reachability + layout check for the setup screen. Never throws for API failures. */
-  inspect(): Promise<InspectResult>;
+  /**
+   * Re-reads the header rows, replaces the cached layout and drops cached
+   * rows, then reports reachability + layout for the setup screen. Never
+   * throws for API failures.
+   */
+  reloadLayout(): Promise<ReloadLayoutResult>;
   /**
    * Exact-match lookup over the whole tab, with duplicate detection. Answers
    * from the row cache when it is fresh; a miss refreshes it once before
@@ -129,6 +134,8 @@ export function dataRangesFor(tab: string, block: RoomBlock): SheetRange[] {
  * process whichever TA's token fetched them (all TAs see the same sheet).
  * Columns are assumed not to move during an exam, so the layout is read once;
  * setGotPaper's header check is the backstop if they do.
+ * 
+ * Keyed by `${spreadsheetId}\n${tab}`
  */
 const knownLayouts = new Map<string, LayoutResult>();
 const knownRows = new Map<string, { rows: CheckinRow[]; fetchedAt: number }>();
@@ -167,11 +174,13 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     };
   }
 
+  // Results is exact query data from each range in plan, results[plan num][row][col] -> cell value
   function rowsFrom(plan: Array<{ block: RoomBlock; ranges: SheetRange[] }>, results: CellValue[][][]): CheckinRow[] {
     const rows: CheckinRow[] = [];
     let cursor = 0;
     for (const { block, ranges } of plan) {
       // Reassemble a sparse column->value map per row from this block's ranges.
+      // key is [row][col] -> CellValue
       const perRow = new Map<number, Map<number, CellValue>>();
       for (const range of ranges) {
         const firstCol = range.cols![0];
@@ -268,7 +277,7 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     return { kind: "written", range: toA1(boxCell) };
   }
 
-  async function inspect(): Promise<InspectResult> {
+  async function reloadLayout(): Promise<ReloadLayoutResult> {
     try {
       const layout = await fetchLayout();
       return { reachable: true, layout, summary: `reachable · ${describeLayout(layout)}` };
@@ -278,5 +287,5 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     }
   }
 
-  return { spreadsheetId, tab, inspect, findExam, setGotPaper };
+  return { spreadsheetId, tab, reloadLayout, findExam, setGotPaper };
 }

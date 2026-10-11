@@ -1,11 +1,9 @@
 /**
  * Minimal Google Sheets REST v4 client. Only the two calls this app needs.
- * Everything above this layer talks to the `SheetsApi` interface so tests can
- * substitute an in-memory grid.
+ * Everything above this layer talks to the `CheckinSheet` interface.
  *
  * Callers address cells by index, never by A1 string: column indices are
- * 0-based (0 = A); sheet rows are 1-based, matching what Google shows. A1
- * notation is built here, at the HTTP boundary, and nowhere else.
+ * 0-based (0 = A); sheet rows are 1-based, matching what Google shows.
  */
 
 export type CellValue = string | number | boolean | null;

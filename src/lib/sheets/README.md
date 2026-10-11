@@ -1,7 +1,6 @@
 # `src/lib/sheets`
 
-The app's only way of talking to the check-in spreadsheet. Nothing else in the
-codebase may call the Sheets API directly.
+The app's interfacing layer with the check-in spreadsheet.
 
 ## Layers
 
@@ -9,7 +8,7 @@ codebase may call the Sheets API directly.
 |---|---|
 | `api.ts` | `SheetsApi` interface plus a thin `fetch`-based Google Sheets v4 client (`values.batchGet`, `values.update`). Callers pass index-based `SheetRange`s (rows 1-based, columns 0-based); A1 strings are built only here, with tab names always quoted. Takes a bearer-token getter so writes happen as the proctoring TA. |
 | `layout.ts` | Pure parser for header rows 1–6: discovers room blocks and reports layout problems. |
-| `checkinSheet.ts` | `openCheckinSheet(...)`: allowlist check, `inspect`, `findExam`, `setGotPaper`. |
+| `checkinSheet.ts` | `openCheckinSheet(...)`: allowlist check, `reloadLayout`, `findExam`, `setGotPaper`. |
 | `testing/` | All sheets test code: `sheets.test.ts`, run against an in-memory `SheetsApi` seeded from `testSheet.csv` (a TEMPLATE-shaped tab with a few made-up students). Not imported by app code. |
 
 ## Layout assumptions (a copy of the TEMPLATE tab)
@@ -34,10 +33,12 @@ codebase may call the Sheets API directly.
 - Merged cells come back from the API only in their top-left cell; the
   parser does not depend on separator columns being blank.
 
-## FERPA column rule
+## Sheets queries
 
-The sheet holds names, seats, notes, and accommodations. This module never
-requests them. Data requests ask for exactly four columns per block: `Andrew id`,
+This module only requests strictly needed data ranges, so sensitive regions like
+accomodation data shouldn't be requested.
+
+Data requests ask for exactly four columns per block: `Andrew id`,
 `Section`, `Exam #`, `Got paper`, as contiguous column ranges (`'Exam 1'!C7:E`
 and `'Exam 1'!G7:G` in A1). Header rows 1–6 are read whole, which is safe
 because they contain no student data. `testing/sheets.test.ts` checks every range
@@ -50,7 +51,7 @@ with `valueInputOption=RAW` and a boolean. Before writing it makes one read of
 the `Exam #` and `Got paper` header cells plus that row's exam number and
 checkbox. It refuses if either header moved (columns inserted or rearranged),
 the exam number changed (sheet edited underneath us), or the box is already
-TRUE when setting TRUE (double scan). Unchecking is allowed, for undo.
+TRUE when setting TRUE (double scan).
 
 ## Lookup rule
 

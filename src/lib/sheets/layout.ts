@@ -17,9 +17,11 @@
 
 import { columnLetter } from "./api";
 
+/** Sheets (1 based) numbering  */
 export const HEADER_ROW = 6;
 export const FIRST_DATA_ROW = 7;
 
+/** Layout data for each proctoring room */
 export interface RoomBlock {
   /** Position left to right, 0-based. */
   index: number;
@@ -115,6 +117,7 @@ function headerRuns(row6: unknown[]): Array<{ start: number; headers: string[] }
   return runs;
 }
 
+/** parses layout from headerRows[col][row], zero based indexing for each */
 export function parseLayout(headerRows: unknown[][]): LayoutResult {
   const problems: LayoutProblem[] = [];
   const blocks: RoomBlock[] = [];

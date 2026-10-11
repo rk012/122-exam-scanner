@@ -144,9 +144,12 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
   const { api, spreadsheetId, tab } = opts;
   const key = `${spreadsheetId}\n${tab}`;
 
+  /** Always clears row cache */
   async function fetchLayout(): Promise<LayoutResult> {
     const [header] = await api.batchGet(spreadsheetId, [{ tab, rows: [1, HEADER_ROW] }]);
     const layout = parseLayout(header);
+    // A new layout (or a mismatch) invalidates rows read using the old columns.
+    knownRows.delete(key);
     // Only a matching layout is kept, so a fixed sheet is picked up on the next lookup.
     if (layout.ok) knownLayouts.set(key, layout);
     else knownLayouts.delete(key);

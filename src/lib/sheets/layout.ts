@@ -10,7 +10,7 @@
  *
  * There is no separate notion of time: a room is a (room name, timeslot)
  * pair, so the same physical room at two times is two rooms. The
- * accommodations ("Accom") block is skipped entirely, like Makeup.
+ * accommodations ("Accom") and Makeup blocks are skipped entirely, by name.
  *
  * Nothing in rows 1-6 is student data.
  */
@@ -129,10 +129,11 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
   const at = (n: number, c: number): string => cellText(row(n)[c]);
 
   for (const run of headerRuns(row(HEADER_ROW))) {
+    // Only the known non-room blocks are skipped, by their row-2 name. Every
+    // other header run must be a valid check-in block, so a drifted block is
+    // reported rather than silently dropped.
+    if (/^(accom|makeup)\b/i.test(at(2, run.start))) continue;
     const has = (h: string) => run.headers.includes(h);
-    const isCheckin = has("exam #") || has("got paper") || has("first name");
-    if (!isCheckin) continue; // e.g. the Makeup block: Andrew id, Section, Cause, ...
-    if (/^accom\b/i.test(at(2, run.start))) continue; // accommodations are handled outside the app
 
     const colOf = (h: string): number | undefined => {
       const i = run.headers.indexOf(h);

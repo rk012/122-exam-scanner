@@ -17,9 +17,9 @@ codebase may call the Sheets API directly.
 - Rows 1–6 are headers; students start at row 7.
 - Rooms are laid out horizontally as blocks. Row 6 holds each block's column
   headers: `First name, Last name, Andrew id, Section, Exam #, Seat #, Got paper, …, Notes`.
-  The Makeup block has no `Exam #`/`Got paper` and is ignored. The
-  accommodations block (room name `Accom`) is also ignored: the app never
-  reads or writes it.
+  The Makeup and accommodations blocks (row-2 room name `Makeup` / `Accom`)
+  are ignored by name: the app never reads or writes them. Any other header
+  run in row 6 must be a complete check-in block, or it is a layout problem.
 - Row 2 of a block: room name at the first column, room code two columns
   right, timeslot three columns right. Row 3 has `capacity: N`; row 4 has
   `Sections: A, B, C` (or `#N/A`) in the block's `Notes` column.

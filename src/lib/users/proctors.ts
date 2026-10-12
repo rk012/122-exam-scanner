@@ -40,15 +40,11 @@ export async function isProctor(db: Db, andrewId: string): Promise<boolean> {
 }
 
 /** Adds ids idempotently; returns the ids that were actually new. */
-export async function addProctors(
-  db: Db,
-  andrewIds: readonly string[],
-  addedBy: string,
-): Promise<string[]> {
+export async function addProctors(db: Db, andrewIds: readonly string[]): Promise<string[]> {
   if (andrewIds.length === 0) return [];
   const inserted = await db
     .insert(proctors)
-    .values(andrewIds.map((andrewId) => ({ andrewId, addedBy })))
+    .values(andrewIds.map((andrewId) => ({ andrewId })))
     .onConflictDoNothing()
     .returning({ andrewId: proctors.andrewId });
   return inserted.map((r) => r.andrewId);

@@ -1,5 +1,5 @@
 {
-  "id": "b282d0ef-ee24-4672-8d61-8148db98265b",
+  "id": "9aeb242f-c7da-49a2-91e1-74db93911d28",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -13,19 +13,6 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true
-        },
-        "added_by": {
-          "name": "added_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "added_at": {
-          "name": "added_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {},

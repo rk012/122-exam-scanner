@@ -74,8 +74,6 @@ export default async function UsersAdminPage() {
               <thead className="text-left text-xs text-neutral-500">
                 <tr>
                   <th className="py-1 pr-4 font-medium">Andrew ID</th>
-                  <th className="py-1 pr-4 font-medium">Added by</th>
-                  <th className="py-1 pr-4 font-medium">Added</th>
                   <th className="py-1" />
                 </tr>
               </thead>
@@ -83,10 +81,6 @@ export default async function UsersAdminPage() {
                 {rows.map((r) => (
                   <tr key={r.andrewId} className="border-t border-neutral-200 dark:border-neutral-800">
                     <td className="py-1.5 pr-4 font-mono">{r.andrewId}</td>
-                    <td className="py-1.5 pr-4 font-mono">{r.addedBy}</td>
-                    <td className="py-1.5 pr-4 text-neutral-500">
-                      {r.addedAt.toISOString().slice(0, 10)}
-                    </td>
                     <td className="py-1.5 text-right">
                       <form action={removeProctorAction}>
                         <input type="hidden" name="andrewId" value={r.andrewId} />

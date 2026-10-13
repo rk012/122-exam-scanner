@@ -178,6 +178,36 @@ needs the new table, and again whenever a migration is added.
   who also scans adds themselves to the proctor list. A signed-in account not
   on the list sees "Not authorized" on the home page.
 
+## Scan API
+
+Backend for scanning clients. All routes require the session cookie of a
+signed-in proctor who granted the Sheets scope, and an active
+sheet (spreadsheet and tab) set at `/admin`. Errors are `{ error, message }` with codes
+`unauthenticated` 401, `session-expired` 401, `not-a-proctor` 403,
+`sheets-access-missing` 403, `bad-request` 400, `no-active-sheet` 503,
+`not-configured` 503, `sheet-unavailable` 502.
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /api/scan/rooms` | | `{ rooms: [{ code, room, capacity }] }` from the active tab's layout; `room` is e.g. `"DH 2210, 7:00 - 7:35pm"` |
+| `POST /api/scan/lookup` | `{ examNumber, roomCode }` | `{ status: "match", examNumber, andrewId, room }` or `{ status: "flagged", code, flag: { title, body, action }, examNumber, belongsTo? }`. Writes nothing. |
+| `POST /api/scan/confirm` | `{ examNumber, roomCode }` | `{ status: "checked", ... }` after ticking exactly one Got paper box as the TA, or `{ status: "flagged", ... }` with nothing written |
+
+Flow: pick a room from `rooms`, `lookup` each QR, show the proctor the exam
+number and Andrew ID, and call `confirm` only when they tap ✓. `confirm`
+re-runs every check against the live sheet, so a box ticked by hand in between
+comes back as `already-collected` rather than being overwritten.
+
+Flag codes, in the order they are checked: `not-in-sheet`, `duplicate`,
+`wrong-room` (with `belongsTo`), `no-andrew-id`, `row-malformed`,
+`already-collected`. Text for each is in
+`src/lib/scan/outcome.ts`.
+
+There is no section check: a row's room block already reflects permanent and
+one-time swaps, so the wrong-room check is the authoritative one. Accom blocks
+are skipped by the sheets layer, so an Accom exam number comes back as
+`not-in-sheet`.
+
 ## QA vs Prod
 
 `src/lib/build.ts` reads `APP_ENV` and exports `build` (`"qa" | "prod"`) and

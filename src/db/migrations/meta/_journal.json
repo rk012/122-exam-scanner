@@ -8,6 +8,13 @@
       "when": 1791846699588,
       "tag": "0000_proctors",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791908485703,
+      "tag": "0001_app_config",
+      "breakpoints": true
     }
   ]
 }

@@ -29,14 +29,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       return (
         <div className="mx-auto flex w-full max-w-md flex-col gap-6">
           <SignedIn andrewId={andrewId} />
-          <div>
-            <Link
-              href="/admin"
-              className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-            >
-              Manage users
-            </Link>
-          </div>
+          <Link
+            href="/admin"
+            className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+          >
+            Admin
+          </Link>
         </div>
       );
     }
@@ -113,7 +111,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </ul>
         <p className="mt-2 font-medium">What it stores</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
-          <li>Your Andrew ID, exam numbers you scan, and timestamps. Nothing else.</li>
+          <li>Your Andrew ID, exam numbers you scan, and timestamps.</li>
         </ul>
       </div>
     </div>

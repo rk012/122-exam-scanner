@@ -162,13 +162,21 @@ DATABASE_URL=... pnpm db:migrate   # applies pending migrations to that database
 Run `db:migrate` once against each Neon project before the first deploy that
 needs the new table, and again whenever a migration is added.
 
-### Users
+### Admin page
 
-`/admin` (superadmins only) lists superadmins (read-only, from
-`SUPERUSERS`) and lets you add or remove proctors by Andrew ID. The two are
-independent: a superadmin who also scans adds themselves to the proctor list.
-A signed-in account not on the list shows "Not on the proctor list" on the home
-page.
+`/admin` (superadmins only) holds every admin setting:
+
+- **Active sheet:** the spreadsheet and tab the scanner uses. It shows the
+  spreadsheet's name and the tab, both linking to Google Sheets, plus the
+  rooms read live from the tab's layout. Saving first checks reachability and
+  the TEMPLATE layout using the superadmin's own Google access. `TEMPLATE`
+  itself is refused as the tab name. The tab can be left blank (saved as
+  `null`) or cleared later, and **Clear spreadsheet** deletes the config row;
+  scanning is disabled until both a spreadsheet and a tab are set.
+- **Users:** superadmins (read-only, from `SUPERUSERS`) and the proctor list,
+  where you add or remove Andrew IDs. The two are independent: a superadmin
+  who also scans adds themselves to the proctor list. A signed-in account not
+  on the list sees "Not authorized" on the home page.
 
 ## QA vs Prod
 

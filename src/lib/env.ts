@@ -11,8 +11,11 @@
  * deliberately eager and has a committed default.
  *
  * Nothing in this module may ever be prefixed NEXT_PUBLIC_: the OAuth client
- * secret must never reach the browser bundle.
+ * secret must never reach the browser bundle. The server-only import below makes
+ * importing this module from a "use client" file a build error.
  */
+
+import "server-only";
 
 export class MissingEnvError extends Error {
   constructor(public readonly name_: string, hint: string) {

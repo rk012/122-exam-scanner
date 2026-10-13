@@ -13,7 +13,7 @@ import {
 } from "@/lib/config/activeSheet";
 import { getGoogleAccess } from "@/lib/google/access";
 import { createGoogleSheetsApi, openCheckinSheet } from "@/lib/sheets";
-import { addProctors, parseAndrewIdInput, removeProctor } from "@/lib/users/proctors";
+import { addProctors, listProctors, parseAndrewIdInput, removeProctor } from "@/lib/users/proctors";
 
 async function requireSuperadmin(): Promise<void> {
   const session = await auth();
@@ -22,10 +22,18 @@ async function requireSuperadmin(): Promise<void> {
   }
 }
 
+// The proctor actions return the updated list instead of revalidating /admin:
+// re-rendering the page would also re-read the active sheet from Google.
+
+async function proctorIds(): Promise<string[]> {
+  return (await listProctors(getDb())).map((p) => p.andrewId);
+}
+
 export interface AddResult {
   added: string[];
   alreadyPresent: string[];
   invalid: string[];
+  proctors: string[];
 }
 
 export async function addProctorsAction(
@@ -37,19 +45,20 @@ export async function addProctorsAction(
   const { valid, invalid } = parseAndrewIdInput(raw);
   const added = await addProctors(getDb(), valid);
   const addedSet = new Set(added);
-  revalidatePath("/admin");
   return {
     added,
     alreadyPresent: valid.filter((id) => !addedSet.has(id)),
     invalid,
+    proctors: await proctorIds(),
   };
 }
 
-export async function removeProctorAction(formData: FormData): Promise<void> {
+/** Returns the proctor list after the removal. */
+export async function removeProctorAction(formData: FormData): Promise<string[]> {
   await requireSuperadmin();
   const andrewId = String(formData.get("andrewId") ?? "");
   await removeProctor(getDb(), andrewId);
-  revalidatePath("/admin");
+  return proctorIds();
 }
 
 export interface SetSheetResult {

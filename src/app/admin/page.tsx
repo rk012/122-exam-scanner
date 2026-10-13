@@ -7,8 +7,7 @@ import { getGoogleAccess } from "@/lib/google/access";
 import { createGoogleSheetsApi, describeLayout, openCheckinSheet, type RoomBlock } from "@/lib/sheets";
 import { listProctors } from "@/lib/users/proctors";
 import { ActiveSheetForm, ClearActiveSheetButtons } from "./ActiveSheetForm";
-import { AddProctorsForm } from "./AddProctorsForm";
-import { removeProctorAction } from "./actions";
+import { ProctorsSection } from "./ProctorsSection";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +40,7 @@ export default async function AdminPage() {
 
   const db = getDb();
   const [rows, active] = await Promise.all([listProctors(db), getActiveSheet(db)]);
+  const proctorIds = rows.map((r) => r.andrewId);
   const details = active ? await loadSheetDetails(active) : null;
   const superusers = [...env.superusers].sort();
 
@@ -82,43 +82,9 @@ export default async function AdminPage() {
           </ul>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <h3 className="text-xs font-medium text-neutral-500">Proctors ({rows.length})</h3>
-          <AddProctorsForm />
-          {rows.length === 0 ? (
-            <p className="text-sm text-neutral-500">No proctors yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs text-neutral-500">
-                  <tr>
-                    <th className="py-1 pr-4 font-medium">Andrew ID</th>
-                    <th className="py-1" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.andrewId} className="border-t border-neutral-200 dark:border-neutral-800">
-                      <td className="py-1.5 pr-4 font-mono">{r.andrewId}</td>
-                      <td className="py-1.5 text-right">
-                        <form action={removeProctorAction}>
-                          <input type="hidden" name="andrewId" value={r.andrewId} />
-                          <button
-                            type="submit"
-                            className="text-xs text-red-700 underline dark:text-red-400"
-                            aria-label={`Remove ${r.andrewId}`}
-                          >
-                            Remove
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {/* Keyed so a server re-render with a different list (e.g. after saving
+            the sheet) replaces the client copy. */}
+        <ProctorsSection key={proctorIds.join(",")} initial={proctorIds} />
       </section>
     </div>
   );

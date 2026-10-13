@@ -4,7 +4,7 @@
  * here ever requests a student's name, seat, or notes.
  */
 
-import { columnLetter, toA1, type CellValue, type SheetRange, type SheetsApi } from "./api";
+import { columnLetter, toA1, type CellValue, type SheetRange, type SheetsApi, type SpreadsheetInfo } from "./api";
 import {
   describeLayout,
   HEADER_ROW,
@@ -73,6 +73,8 @@ export interface CheckinSheet {
    * throws for API failures.
    */
   reloadLayout(): Promise<ReloadLayoutResult>;
+  /** The spreadsheet's title and tabs, for the setup screen. */
+  info(): Promise<SpreadsheetInfo>;
   /**
    * Exact-match lookup over the whole tab, with duplicate detection. Answers
    * from the row cache when it is fresh; a miss refreshes it once before
@@ -287,5 +289,5 @@ export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
     }
   }
 
-  return { spreadsheetId, tab, reloadLayout, findExam, setGotPaper };
+  return { spreadsheetId, tab, reloadLayout, info: () => api.getInfo(spreadsheetId), findExam, setGotPaper };
 }

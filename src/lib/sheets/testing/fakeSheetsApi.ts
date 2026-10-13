@@ -88,6 +88,9 @@ export function createFakeSheetsApi(grids: Record<string, Grid>): FakeSheetsApi 
   return {
     grids: store,
     calls,
+    async getInfo() {
+      return { title: "Fake check-in sheet", tabs: [...store.keys()].map((title, gid) => ({ title, gid })) };
+    },
     async batchGet(spreadsheetId, ranges) {
       calls.push({ op: "batchGet", spreadsheetId, ranges });
       return ranges.map(slice);

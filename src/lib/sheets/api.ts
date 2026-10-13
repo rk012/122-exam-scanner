@@ -1,5 +1,5 @@
 /**
- * Minimal Google Sheets REST v4 client. Only the two calls this app needs.
+ * Minimal Google Sheets REST v4 client. Only the calls this app needs.
  * Everything above this layer talks to the `CheckinSheet` interface.
  *
  * Callers address cells by index, never by A1 string: column indices are
@@ -17,7 +17,16 @@ export interface SheetRange {
   cols?: [first: number, last: number];
 }
 
+/** Spreadsheet metadata: the file's title and its tabs. */
+export interface SpreadsheetInfo {
+  title: string;
+  /** `gid` is the tab's sheetId, as in `#gid=` in a Sheets URL. */
+  tabs: Array<{ title: string; gid: number }>;
+}
+
 export interface SheetsApi {
+  /** spreadsheets.get, metadata only (no cell data). */
+  getInfo(spreadsheetId: string): Promise<SpreadsheetInfo>;
   /**
    * values.batchGet. Returns one grid per requested range, in order. Like
    * Google, trailing empty cells and rows are trimmed, so a grid may be
@@ -103,6 +112,23 @@ export function createGoogleSheetsApi(opts: GoogleSheetsApiOptions): SheetsApi {
   }
 
   return {
+    async getInfo(spreadsheetId) {
+      const params = new URLSearchParams({ fields: "properties.title,sheets.properties(sheetId,title)" });
+      const url = `${base}/${encodeURIComponent(spreadsheetId)}?${params}`;
+      const res = await doFetch(url, { headers: await headers() });
+      if (!res.ok) throw await describeFailure(res);
+      const body = (await res.json()) as {
+        properties?: { title?: string };
+        sheets?: Array<{ properties?: { sheetId?: number; title?: string } }>;
+      };
+      return {
+        title: body.properties?.title ?? "",
+        tabs: (body.sheets ?? []).flatMap(({ properties: p }) =>
+          p?.title !== undefined && p.sheetId !== undefined ? [{ title: p.title, gid: p.sheetId }] : [],
+        ),
+      };
+    },
+
     async batchGet(spreadsheetId, ranges) {
       const params = new URLSearchParams();
       for (const r of ranges) params.append("ranges", toA1(r));

@@ -83,9 +83,39 @@ bounced back to the sign-in page with an explanation.
 - The signed-in identity is the **Andrew ID** (email local part).
 - **Role** is `superadmin` when the Andrew ID is in `SUPERUSERS`, else `user`.
   It is computed on every request, so editing `SUPERUSERS` needs no re-login.
-- Sessions are stateless JWT cookies signed with `AUTH_SECRET`. No user table.
-- Scopes requested today: `openid email profile` only. The Sheets scope will be
-  added later, once the GCP app can request it.
+- Scopes: `openid email profile` plus the Sheets scope
+  (`https://www.googleapis.com/auth/spreadsheets`), with `access_type=offline`
+  and `prompt=consent` so Google issues a refresh token.
+
+### How auth works
+
+The whole session is one cookie: a JWT **encrypted** (not just signed) with a
+key derived from `AUTH_SECRET`. There is no session or user table, and the
+browser can't read the cookie's contents.
+
+1. **Sign-in.** Google redirects back to `/api/auth/callback/google`. The
+   `jwt` callback in `src/auth.ts` stores the Andrew ID and Google's access
+   token, refresh token, expiry and granted scopes in the cookie. This is the
+   only call where `account` is set.
+2. **Every request to `/admin` or `/api/scan`** passes through
+   `src/proxy.ts`. It runs Auth.js's middleware, which decrypts the cookie and
+   runs the `jwt` callback. If the access token expires within 60s, the
+   callback refreshes it (`src/lib/google/refresh.ts`). Auth.js then
+   re-encrypts the cookie. The proxy sends that cookie to the browser and also
+   to the page or handler serving the same request. A proxy is needed because
+   pages can't set cookies; without it a refreshed token would be thrown away
+   and refreshed again on every request.
+3. **Identity.** Pages and handlers call `auth()` for `andrewId` and `role`.
+   The `session` callback never includes Google tokens, because Auth.js also
+   returns that object to the browser at `/api/auth/session`.
+4. **Google access.** Server code that calls Sheets as the user uses
+   `getGoogleAccess()` (`src/lib/google/access.ts`, server-only). It decrypts
+   the cookie itself and returns the access token, `missing` (Sheets scope not
+   granted) or `expired` (refresh failed; sign in again).
+
+Sessions last Auth.js's default 30 days from the last request through the
+proxy. Proctor status is checked against the database on every request, so
+removing someone from the list cuts off their session immediately.
 
 ### One-time GCP setup (per deployment)
 

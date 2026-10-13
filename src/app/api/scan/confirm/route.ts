@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const body = await readScanBody(req);
   if (body instanceof NextResponse) return body;
   const outcome = await confirmScan(
-    { sheet: caller.sheet, roomCode: body.roomCode },
+    { db: caller.db, sheet: caller.sheet, taAndrewId: caller.andrewId, roomCode: body.roomCode },
     body.examNumber,
   );
   return NextResponse.json(outcome);

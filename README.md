@@ -208,6 +208,9 @@ one-time swaps, so the wrong-room check is the authoritative one. Accom blocks
 are skipped by the sheets layer, so an Accom exam number comes back as
 `not-in-sheet`.
 
+Every lookup and confirm appends a row to `scan_events` (exam number, room, TA
+Andrew ID, action, outcome, time). Nothing reads it to make decisions.
+
 ## QA vs Prod
 
 `src/lib/build.ts` reads `APP_ENV` and exports `build` (`"qa" | "prod"`) and

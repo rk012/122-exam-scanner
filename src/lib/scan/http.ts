@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getDb } from "@/db";
+import { getDb, type Db } from "@/db";
 import { getActiveSheet } from "@/lib/config/activeSheet";
 import { env } from "@/lib/env";
 import { getGoogleAccess } from "@/lib/google/access";
@@ -26,6 +26,8 @@ export function apiError(code: ApiErrorCode, message: string, status: number) {
 }
 
 export interface ScanCallerContext {
+  db: Db;
+  andrewId: string;
   sheet: CheckinSheet;
 }
 
@@ -64,7 +66,7 @@ export async function resolveScanCallerContext(): Promise<ScanCallerContext | Ne
 
   const api = createGoogleSheetsApi({ getAccessToken: async () => google.accessToken });
   const sheet = openCheckinSheet({ api, spreadsheetId: active.spreadsheetId, tab: active.tab });
-  return { sheet };
+  return { db, andrewId, sheet };
 }
 
 export interface ScanRequestBody {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import { AccountMenu } from "@/components/AccountMenu";
 import { QaBadge } from "@/components/QaBadge";
 import { isQa } from "@/lib/build";
@@ -33,7 +34,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <header className="flex items-center gap-3 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
-          <span className="font-semibold">122 Check-in Scanner</span>
+          <Link href="/" className="font-semibold">
+            122 Check-in Scanner
+          </Link>
           <QaBadge />
           <AccountMenu />
         </header>

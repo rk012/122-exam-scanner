@@ -27,7 +27,7 @@ export async function addProctorsAction(
   const { valid, invalid } = parseAndrewIdInput(raw);
   const added = await addProctors(getDb(), valid);
   const addedSet = new Set(added);
-  revalidatePath("/admin/users");
+  revalidatePath("/admin");
   return {
     added,
     alreadyPresent: valid.filter((id) => !addedSet.has(id)),
@@ -39,5 +39,5 @@ export async function removeProctorAction(formData: FormData): Promise<void> {
   await requireSuperadmin();
   const andrewId = String(formData.get("andrewId") ?? "");
   await removeProctor(getDb(), andrewId);
-  revalidatePath("/admin/users");
+  revalidatePath("/admin");
 }

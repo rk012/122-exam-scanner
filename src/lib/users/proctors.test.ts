@@ -1,5 +1,5 @@
 /**
- * The proctor allowlist as a superadmin uses it from /admin/users, against an
+ * The proctor allowlist as a superadmin uses it from /admin, against an
  * in-process Postgres with the real migrations applied.
  */
 import { afterAll, beforeAll, expect, it } from "vitest";

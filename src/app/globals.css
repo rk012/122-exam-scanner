@@ -19,6 +19,14 @@
   }
 }
 
+/* Tailwind v4's preflight resets buttons to the default arrow cursor. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

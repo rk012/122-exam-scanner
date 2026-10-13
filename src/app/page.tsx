@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth, signIn, signOut } from "@/auth";
+import { auth, signIn } from "@/auth";
 import { QaBadge } from "@/components/QaBadge";
 import { getDb } from "@/db";
 import { env } from "@/lib/env";
@@ -24,63 +24,42 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   if (session?.user) {
     const { andrewId, role } = session.user;
-    // Superadmins are implicitly proctors. Without a database nobody else is,
-    // which matches the fallback of checking boxes in the sheet by hand.
-    const onProctorList =
-      role === "superadmin" || (env.hasDatabaseUrl && (await isProctor(getDb(), andrewId)));
+
+    if (role === "superadmin") {
+      return (
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+          <SignedIn andrewId={andrewId} />
+          <div>
+            <Link
+              href="/admin"
+              className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              Manage users
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    // Without a database nobody is on the list, which matches the fallback of
+    // checking boxes in the sheet by hand.
+    const onProctorList = env.hasDatabaseUrl && (await isProctor(getDb(), andrewId));
+    if (onProctorList) {
+      return (
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+          <SignedIn andrewId={andrewId} />
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-semibold">Signed in</h1>
+          <h1 className="text-2xl font-semibold">Not authorized</h1>
           <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-            You are signed in with your Andrew Google account.
+            <span className="font-mono">{andrewId}</span> is not on the proctor list.
           </p>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-neutral-500">Andrew ID</dt>
-          <dd className="font-mono">{andrewId}</dd>
-          <dt className="text-neutral-500">Role</dt>
-          <dd>
-            {role === "superadmin" ? (
-              <span className="rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-900 dark:bg-violet-950 dark:text-violet-200">
-                Superadmin
-              </span>
-            ) : (
-              <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
-                Regular user
-              </span>
-            )}
-          </dd>
-          <dt className="text-neutral-500">Proctor list</dt>
-          <dd className="text-sm">{onProctorList ? "On the list" : "Not on the list"}</dd>
-        </dl>
-        {!onProctorList && (
-          <p
-            role="alert"
-            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-          >
-            Not on the proctor list: ask a head TA to add you, or check boxes in the sheet
-            directly.
-          </p>
-        )}
-        {role === "superadmin" && (
-          <Link href="/admin/users" className="text-sm underline">
-            Manage users
-          </Link>
-        )}
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <button
-            type="submit"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-          >
-            Sign out
-          </button>
-        </form>
       </div>
     );
   }
@@ -123,11 +102,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           role="alert"
           className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
-          Sign-in is not configured on this deployment. See{" "}
-          <Link href="/status" className="underline">
-            deployment status
-          </Link>{" "}
-          for what is missing.
+          Sign-in is not configured on this deployment.
         </p>
       )}
       <div className="text-xs text-neutral-500">
@@ -141,6 +116,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <li>Your Andrew ID, exam numbers you scan, and timestamps. Nothing else.</li>
         </ul>
       </div>
+    </div>
+  );
+}
+
+function SignedIn({ andrewId }: { andrewId: string }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold">Signed in</h1>
+      <p className="mt-1 font-mono text-sm text-neutral-600 dark:text-neutral-400">{andrewId}</p>
     </div>
   );
 }

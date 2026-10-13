@@ -1,8 +1,8 @@
 import { pgTable, text } from "drizzle-orm/pg-core";
 
 /**
- * Proctor allowlist: regular users who may use the scanner. Superadmins are
- * NOT stored here; they come from the SUPERUSERS env var.
+ * Proctor allowlist: users who may use the scanner. Independent of superadmin
+ * (the SUPERUSERS env var): a superadmin who scans adds themselves here.
  */
 export const proctors = pgTable("proctors", {
   andrewId: text("andrew_id").primaryKey(),

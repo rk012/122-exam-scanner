@@ -6,8 +6,8 @@ Google account. Full spec lives in the wiki under
 `projects/122-exam-checkin-scanner`.
 
 **Status:** skeleton. Today the app has Google sign-in restricted to Andrew
-accounts, shows whether you are a superadmin or regular user, and a
-`/status` page showing which deployment and secrets are configured.
+accounts, a proctor allowlist that gates access, and a superadmin page for
+managing it.
 
 ## Stack
 
@@ -134,10 +134,11 @@ needs the new table, and again whenever a migration is added.
 
 ### Users
 
-`/admin/users` (superadmins only) lists superadmins (read-only, from
-`SUPERUSERS`) and lets you add or remove proctors by Andrew ID. A signed-in
-account that is neither shows "Not on the proctor list" on the home page.
-Superadmins count as proctors.
+`/admin` (superadmins only) lists superadmins (read-only, from
+`SUPERUSERS`) and lets you add or remove proctors by Andrew ID. The two are
+independent: a superadmin who also scans adds themselves to the proctor list.
+A signed-in account not on the list shows "Not on the proctor list" on the home
+page.
 
 ## QA vs Prod
 

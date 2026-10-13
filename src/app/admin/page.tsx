@@ -30,11 +30,7 @@ export default async function UsersAdminPage() {
   if (!env.hasDatabaseUrl) {
     return (
       <p role="alert" className="text-sm">
-        No database is configured on this deployment. See{" "}
-        <Link href="/status" className="underline">
-          deployment status
-        </Link>
-        .
+        No database is configured on this deployment.
       </p>
     );
   }
@@ -47,8 +43,8 @@ export default async function UsersAdminPage() {
       <div>
         <h1 className="text-2xl font-semibold">Users</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Regular users are proctors allowed to use the scanner. Superadmins are set per
-          deployment and cannot be edited here.
+          Proctors are allowed to use the scanner. Superadmins are set per deployment and
+          cannot be edited here; add yourself as a proctor to scan.
         </p>
       </div>
 

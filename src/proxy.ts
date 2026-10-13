@@ -1,10 +1,10 @@
-import { NextResponse, type NextFetchEvent, type NextMiddleware, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextProxy, type NextRequest } from "next/server";
 import { auth } from "@/auth";
 
 // Auth.js's own middleware: reads the session, which runs the jwt callback
 // (refreshing an expiring Google token), and re-issues the session cookie.
 // Typing passThrough as NextMiddleware selects auth()'s middleware overload.
-const passThrough: NextMiddleware = () => NextResponse.next();
+const passThrough: NextProxy = () => NextResponse.next();
 const withSession = auth(passThrough);
 
 /**
@@ -12,6 +12,7 @@ const withSession = auth(passThrough);
  * Google as the user. Authorization stays in the pages and handlers.
  */
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // triggers auth/jwt callback which refreshes token
   const authResponse = await withSession(request, event);
   const setCookies = new NextResponse(null, { headers: authResponse?.headers }).cookies.getAll();
 

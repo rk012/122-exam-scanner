@@ -31,9 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // Auth.js also reads AUTH_SECRET itself; passing it keeps env.ts the one
   // place that knows the variable name.
   secret: process.env.AUTH_SECRET,
-  // One exam night. The proxy re-issues the cookie on admin and scan requests,
-  // so this is 12 hours since the last of those, not since sign-in.
-  session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
+  session: { strategy: "jwt" },
   pages: { signIn: "/", error: "/" },
   providers: [
     Google({
@@ -65,6 +63,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const andrewId = andrewIdFromEmail(profile.email);
         if (andrewId) token.andrewId = andrewId;
       }
+
+      // account is only passed once on sign-in
       if (account?.access_token) {
         // Initial sign-in: stash Google's tokens in the encrypted JWT.
         token.accessToken = account.access_token;
@@ -78,6 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // token is written back to the cookie.
       const current = googleTokensFromJwt(token);
       if (current && isExpired(current, Math.floor(Date.now() / 1000))) {
+        // refresh oauth token
         try {
           const fresh = await refreshGoogleTokens(current, env.googleOAuth);
           token.accessToken = fresh.accessToken;

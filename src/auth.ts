@@ -9,6 +9,7 @@ import {
   roleFor,
   type Role,
 } from "@/lib/auth/roles";
+import { googleTokensFromJwt, isExpired, refreshGoogleTokens, SHEETS_SCOPE } from "@/lib/google/refresh";
 
 declare module "next-auth" {
   interface Session {
@@ -30,7 +31,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // Auth.js also reads AUTH_SECRET itself; passing it keeps env.ts the one
   // place that knows the variable name.
   secret: process.env.AUTH_SECRET,
-  session: { strategy: "jwt" },
+  // One exam night. The proxy re-issues the cookie on admin and scan requests,
+  // so this is 12 hours since the last of those, not since sign-in.
+  session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   pages: { signIn: "/", error: "/" },
   providers: [
     Google({
@@ -41,9 +44,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Pre-filters Google's account chooser to the CMU Workspace. This is
           // a UX hint only; isAllowedGoogleAccount is the real check.
           hd: ANDREW_DOMAIN,
-          prompt: "select_account",
-          // Sheets scope is deliberately NOT requested yet. It will be added
-          // (with access_type=offline) once the GCP app can request it.
+          // `consent` is required for Google to issue a refresh token, which
+          // keeps a proctor signed in across an exam night longer than the
+          // one-hour access token.
+          prompt: "select_account consent",
+          access_type: "offline",
+          // The Sheets scope is what lets the app tick the checkbox *as the
+          // TA*, so the sheet's own edit history records their name.
+          scope: `openid email profile ${SHEETS_SCOPE}`,
         },
       },
     }),
@@ -52,10 +60,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn({ profile }) {
       return isAllowedGoogleAccount(profile ?? {});
     },
-    jwt({ token, profile }) {
+    async jwt({ token, profile, account }) {
       if (profile) {
         const andrewId = andrewIdFromEmail(profile.email);
         if (andrewId) token.andrewId = andrewId;
+      }
+      if (account?.access_token) {
+        // Initial sign-in: stash Google's tokens in the encrypted JWT.
+        token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token ?? token.refreshToken;
+        token.expiresAt = account.expires_at ?? Math.floor(Date.now() / 1000) + 3600;
+        token.scope = account.scope;
+        delete token.refreshError;
+        return token;
+      }
+      // Runs on every session read; src/proxy.ts makes sure the refreshed
+      // token is written back to the cookie.
+      const current = googleTokensFromJwt(token);
+      if (current && isExpired(current, Math.floor(Date.now() / 1000))) {
+        try {
+          const fresh = await refreshGoogleTokens(current, env.googleOAuth);
+          token.accessToken = fresh.accessToken;
+          token.refreshToken = fresh.refreshToken;
+          token.expiresAt = fresh.expiresAt;
+          token.scope = fresh.scope;
+          delete token.refreshError;
+        } catch {
+          token.refreshError = "refresh-failed";
+        }
       }
       return token;
     },
@@ -66,6 +98,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const andrewId = fromToken ?? andrewIdFromEmail(session.user?.email) ?? "";
       session.user.andrewId = andrewId;
       session.user.role = roleFor(andrewId, env.superusers);
+      // No Google tokens here: /api/auth/session returns this object to the
+      // browser. Server code reads them with getGoogleAccess().
       return session;
     },
   },

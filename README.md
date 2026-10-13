@@ -84,8 +84,11 @@ bounced back to the sign-in page with an explanation.
 - **Role** is `superadmin` when the Andrew ID is in `SUPERUSERS`, else `user`.
   It is computed on every request, so editing `SUPERUSERS` needs no re-login.
 - Sessions are stateless JWT cookies signed with `AUTH_SECRET`. No user table.
-- Scopes requested today: `openid email profile` only. The Sheets scope will be
-  added later, once the GCP app can request it.
+- Scopes: `openid email profile` plus the Sheets scope
+  (`https://www.googleapis.com/auth/spreadsheets`), with `access_type=offline`
+  and `prompt=consent` so Google issues a refresh token. Tokens live only in
+  the encrypted session cookie and are refreshed in the Auth.js `jwt` callback;
+  the app never stores them.
 
 ### One-time GCP setup (per deployment)
 

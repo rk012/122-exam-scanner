@@ -109,7 +109,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <p className="font-medium">What this app asks for</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
           <li>Your Google account&apos;s email address, to identify you by Andrew ID.</li>
-          <li>Later, permission to edit the check-in spreadsheet as you. Not requested yet.</li>
+          <li>Permission to edit the check-in spreadsheet as you, so the sheet&apos;s own history records your name.</li>
         </ul>
         <p className="mt-2 font-medium">What it stores</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">

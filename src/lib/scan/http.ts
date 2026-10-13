@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getDb } from "@/db";
+import { getDb, type Db } from "@/db";
 import { getActiveSheet } from "@/lib/config/activeSheet";
 import { env } from "@/lib/env";
 import { getGoogleAccess } from "@/lib/google/access";
@@ -26,6 +26,8 @@ export function apiError(code: ApiErrorCode, message: string, status: number) {
 }
 
 export interface Caller {
+  db: Db;
+  andrewId: string;
   sheet: CheckinSheet;
 }
 
@@ -70,7 +72,7 @@ export async function resolveCaller(): Promise<Caller | NextResponse> {
     // The active sheet is the whole allowlist.
     allowedSpreadsheetIds: [active.spreadsheetId],
   });
-  return { sheet };
+  return { db, andrewId, sheet };
 }
 
 export interface ScanRequestBody {

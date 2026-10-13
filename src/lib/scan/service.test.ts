@@ -1,21 +1,30 @@
 /**
  * One exam night in room A1, end to end: the scan service against an
- * in-memory copy of the sheets module's testSheet.csv.
+ * in-memory copy of the sheets module's testSheet.csv and an in-process
+ * Postgres for the scan log.
  */
-import { expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
+import type { Db } from "@/db";
+import { createTestDb } from "@/db/testing/testDb";
 import { openCheckinSheet } from "@/lib/sheets";
 import { createFakeSheetsApi, gridFromCsv } from "@/lib/sheets/testing/fakeSheetsApi";
+import { traceExam } from "./log";
 import { confirmScan, listRooms, lookupScan } from "./service";
 
 const TAB = "Exam 1";
 const SHEET = "scan-service-test"; // unique, so the sheets module's process cache starts empty
 const CSV = new URL("../sheets/testing/testSheet.csv", import.meta.url);
 
-it("matches, flags, and writes one box per confirm", async () => {
+let db: Db;
+let close: () => Promise<void>;
+beforeAll(async () => ({ db, close } = await createTestDb()));
+afterAll(() => close());
+
+it("matches, flags, writes one box per confirm, and logs every scan", async () => {
   const api = createFakeSheetsApi({ [TAB]: gridFromCsv(CSV) });
   const grid = api.grids.get(TAB)!;
   const sheet = openCheckinSheet({ api, spreadsheetId: SHEET, tab: TAB, allowedSpreadsheetIds: [SHEET] });
-  const ctx = { sheet, roomCode: "A1" };
+  const ctx = { db, sheet, taAndrewId: "headta", roomCode: "A1" };
   const writes = () => api.calls.filter((c) => c.op === "update");
 
   // Proctor picks a room. Accom and Makeup are not offered.
@@ -60,4 +69,13 @@ it("matches, flags, and writes one box per confirm", async () => {
   grid[10][6] = true;
   expect(await confirmScan(ctx, "105")).toMatchObject({ status: "flagged", code: "already-collected" });
   expect(writes()).toHaveLength(1);
+
+  // The log records every attempt, newest first, and why nothing was written.
+  expect((await traceExam(db, "101")).map((e) => [e.action, e.outcome, e.taAndrewId, e.roomCode])).toEqual([
+    ["confirm", "already-collected", "headta", "A1"],
+    ["confirm", "checked", "headta", "A1"],
+    ["lookup", "match", "headta", "A1"],
+  ]);
+  expect((await traceExam(db, "201"))[1]).toMatchObject({ action: "lookup", detail: "belongs to C1" });
+  expect((await traceExam(db, "105"))[0].detail).toMatch(/^write refused: /);
 });

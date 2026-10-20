@@ -1,7 +1,5 @@
 /**
- * What a scan can result in, and the exact words the proctor sees. Mirrors the
- * flag table in the design: one title, one sentence of context, one action.
- * The box stays unchecked for every flag.
+ * Possible scan results + messages surfaced to user.
  */
 
 export type FlagCode =
@@ -15,39 +13,32 @@ export type FlagCode =
 export interface FlagText {
   title: string;
   body: string;
-  action: string;
 }
 
 export const FLAGS: Record<FlagCode, FlagText> = {
   "already-collected": {
     title: "Already collected",
-    body: "The box for this exam number is already checked. This may be a double scan.",
-    action: "Set aside, keep scanning",
+    body: "The box for this exam number is already checked.",
   },
   "wrong-room": {
     title: "Wrong room",
     body: "This exam number belongs to another room or timeslot.",
-    action: "Hand to that room's proctor",
   },
   "no-andrew-id": {
     title: "No Andrew ID on the row",
     body: "The sheet row for this exam number has no Andrew ID.",
-    action: "Verify the student's ID card, then check the box in the sheet yourself",
   },
   "not-in-sheet": {
     title: "Not in this sheet",
-    body: "This exam number is not in tonight's sheet, in any room.",
-    action: "Set aside for a head TA (misread digit or packet from another night)",
+    body: "This exam number is not in the sheet.",
   },
   "duplicate": {
     title: "Not found or found twice",
-    body: "This exam number appears on more than one row.",
-    action: "Hand to a head TA",
+    body: "This exam number appears multiple times.",
   },
   "row-malformed": {
     title: "Row malformed",
-    body: "The sheet row for this exam number is missing data or is not laid out as expected.",
-    action: "Enter manually",
+    body: "Could not read row from google sheets for this exam",
   },
 };
 

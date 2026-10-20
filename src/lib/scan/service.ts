@@ -13,18 +13,9 @@ export function roomRef(block: RoomBlock): RoomRef {
 }
 
 /**
- * Pure decision: given what the sheet says about an exam number and which
- * room the proctor selected, decide match vs. flag. Ordered so the most
- * actionable reason wins: a packet in the wrong room is handed off before we
- * bother about its Andrew ID; a row with no Andrew ID is flagged before the
- * checkbox is considered, because the proctor must verify by ID card first.
- *
- * There is deliberately no section check. The block a student's row sits in
- * already reflects permanent and one-time swaps, so a student whose section
- * isn't in the block's "Sections:" list is usually a swap, not a mistake.
- * Which room the row is in (the wrong-room check) is the authoritative test.
+ * Determines scan outcome from exam number, sheeets lookup result, and expected room code
  */
-export function evaluateScan(examNumber: string, lookup: ExamLookup, selectedRoomCode: string): ScanOutcome {
+function evaluateScan(examNumber: string, lookup: ExamLookup, selectedRoomCode: string): ScanOutcome {
   if (lookup.kind === "not-found") return flagged("not-in-sheet", examNumber);
   if (lookup.kind === "duplicate") return flagged("duplicate", examNumber);
 

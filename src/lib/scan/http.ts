@@ -1,5 +1,5 @@
 /**
- * Glue between an HTTP request and the scan service: who is calling, may they
+ * Interfacing between HTTP request and the scan service: who is calling, may they
  * scan, which sheet is active, and a Sheets client acting as that TA.
  */
 
@@ -31,7 +31,7 @@ export interface ScanCallerContext {
 
 /**
  * Resolves the calling proctor and an allowlisted sheet handle, or an error
- * response. Order matters: identity, permission, then configuration.
+ * response.
  */
 export async function resolveScanCallerContext(): Promise<ScanCallerContext | NextResponse> {
   const session = await auth();
@@ -46,7 +46,7 @@ export async function resolveScanCallerContext(): Promise<ScanCallerContext | Ne
   const db = getDb();
 
   if (!(await isProctor(db, andrewId))) {
-    return apiError("not-a-proctor", "Not on the proctor list: ask a head TA to add you.", 403);
+    return apiError("not-a-proctor", "Not on the proctor list.", 403);
   }
 
   const google = await getGoogleAccess();
@@ -59,7 +59,7 @@ export async function resolveScanCallerContext(): Promise<ScanCallerContext | Ne
 
   const active = await getActiveSheet(db);
   if (!active?.tab) {
-    return apiError("no-active-sheet", "A head TA has not set tonight's spreadsheet and tab yet.", 503);
+    return apiError("no-active-sheet", "Checkin spreadsheet is not configured.", 503);
   }
 
   const api = createGoogleSheetsApi({ getAccessToken: async () => google.accessToken });

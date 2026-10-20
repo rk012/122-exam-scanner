@@ -1,5 +1,5 @@
 /**
- * One exam night in room A1, end to end: the scan service against an
+ * end to end test of the scan service against an
  * in-memory copy of the sheets module's testSheet.csv.
  */
 import { expect, it } from "vitest";

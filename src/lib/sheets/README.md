@@ -8,7 +8,7 @@ The app's interfacing layer with the check-in spreadsheet.
 |---|---|
 | `api.ts` | `SheetsApi` interface plus a thin `fetch`-based Google Sheets v4 client (`values.batchGet`, `values.update`). Callers pass index-based `SheetRange`s (rows 1-based, columns 0-based); A1 strings are built only here, with tab names always quoted. Takes a bearer-token getter so writes happen as the proctoring TA. |
 | `layout.ts` | Pure parser for header rows 1–6: discovers room blocks and reports layout problems. |
-| `checkinSheet.ts` | `openCheckinSheet(...)`: allowlist check, `reloadLayout`, `findExam`, `setGotPaper`. |
+| `checkinSheet.ts` | `openCheckinSheet(...)`: `reloadLayout`, `findExam`, `setGotPaper`. |
 | `testing/` | All sheets test code: `sheets.test.ts`, run against an in-memory `SheetsApi` seeded from `testSheet.csv` (a TEMPLATE-shaped tab with a few made-up students). Not imported by app code. |
 
 ## Layout assumptions (a copy of the TEMPLATE tab)

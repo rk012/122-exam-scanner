@@ -30,7 +30,7 @@ export interface ScanCallerContext {
 }
 
 /**
- * Resolves the calling proctor and an allowlisted sheet handle, or an error
+ * Resolves the calling proctor and a handle on the active sheet, or an error
  * response.
  */
 export async function resolveScanCallerContext(): Promise<ScanCallerContext | NextResponse> {
@@ -63,13 +63,7 @@ export async function resolveScanCallerContext(): Promise<ScanCallerContext | Ne
   }
 
   const api = createGoogleSheetsApi({ getAccessToken: async () => google.accessToken });
-  const sheet = openCheckinSheet({
-    api,
-    spreadsheetId: active.spreadsheetId,
-    tab: active.tab,
-    // The active sheet is the whole allowlist.
-    allowedSpreadsheetIds: [active.spreadsheetId],
-  });
+  const sheet = openCheckinSheet({ api, spreadsheetId: active.spreadsheetId, tab: active.tab });
   return { sheet };
 }
 

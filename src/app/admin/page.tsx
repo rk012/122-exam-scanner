@@ -116,12 +116,7 @@ async function loadSheetDetails(active: ActiveSheet): Promise<SheetDetails> {
       return { reachable: false, message: `Spreadsheet unreachable: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
-  const sheet = openCheckinSheet({
-    api,
-    spreadsheetId: active.spreadsheetId,
-    tab: active.tab,
-    allowedSpreadsheetIds: [active.spreadsheetId],
-  });
+  const sheet = openCheckinSheet({ api, spreadsheetId: active.spreadsheetId, tab: active.tab });
   const [info, result] = await Promise.all([sheet.info().catch(() => null), sheet.reloadLayout()]);
   if (!result.reachable) return { reachable: false, message: `Spreadsheet ${result.summary}` };
   const tab = active.tab.toLowerCase();

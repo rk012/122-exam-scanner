@@ -3,7 +3,7 @@
  * testSheet.csv (a TEMPLATE-shaped tab with a few students).
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LayoutMismatchError, openCheckinSheet, SpreadsheetNotAllowedError, type CheckinSheet } from "../checkinSheet";
+import { LayoutMismatchError, openCheckinSheet, type CheckinSheet } from "../checkinSheet";
 import { HEADER_ROW } from "../layout";
 import { createFakeSheetsApi, gridFromCsv, type FakeSheetsApi } from "./fakeSheetsApi";
 
@@ -22,7 +22,7 @@ const cell = (row: number, col: number) => api.grids.get(TAB)![row - 1][col];
 beforeEach(() => {
   SHEET = `qa-sheet-${++tests}`;
   api = createFakeSheetsApi({ [TAB]: gridFromCsv(CSV) });
-  sheet = openCheckinSheet({ api, spreadsheetId: SHEET, tab: TAB, allowedSpreadsheetIds: [SHEET] });
+  sheet = openCheckinSheet({ api, spreadsheetId: SHEET, tab: TAB });
 });
 
 // FERPA: every request in every test reads either header rows or columns
@@ -43,13 +43,6 @@ afterEach(() => {
 });
 
 describe("check-in sheet", () => {
-  it("refuses a spreadsheet not on the allowlist with zero API calls", () => {
-    expect(() =>
-      openCheckinSheet({ api, spreadsheetId: "some-other-sheet", tab: TAB, allowedSpreadsheetIds: [SHEET] }),
-    ).toThrow(SpreadsheetNotAllowedError);
-    expect(api.calls).toHaveLength(0);
-  });
-
   it("discovers one room per (room, timeslot), ignoring Accom and Makeup", async () => {
     const r = await sheet.reloadLayout();
     expect(r.summary).toBe("reachable · 6 rooms · layout matches");

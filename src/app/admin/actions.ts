@@ -88,7 +88,7 @@ export async function setActiveSheetAction(_prev: SetSheetResult | null, formDat
   const api = createGoogleSheetsApi({ getAccessToken: async () => google.accessToken });
   let summary: string;
   if (tab) {
-    const sheet = openCheckinSheet({ api, spreadsheetId, tab, allowedSpreadsheetIds: [spreadsheetId] });
+    const sheet = openCheckinSheet({ api, spreadsheetId, tab });
     const result = await sheet.reloadLayout();
     if (!result.reachable || !result.layout.ok) {
       return { ok: false, message: `Not saved: ${result.summary}` };

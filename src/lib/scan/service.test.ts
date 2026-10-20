@@ -14,7 +14,7 @@ const CSV = new URL("../sheets/testing/testSheet.csv", import.meta.url);
 it("matches, flags, and writes one box per confirm", async () => {
   const api = createFakeSheetsApi({ [TAB]: gridFromCsv(CSV) });
   const grid = api.grids.get(TAB)!;
-  const sheet = openCheckinSheet({ api, spreadsheetId: SHEET, tab: TAB, allowedSpreadsheetIds: [SHEET] });
+  const sheet = openCheckinSheet({ api, spreadsheetId: SHEET, tab: TAB });
   const ctx = { sheet, roomCode: "A1" };
   const writes = () => api.calls.filter((c) => c.op === "update");
 

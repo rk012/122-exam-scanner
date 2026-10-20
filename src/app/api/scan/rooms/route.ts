@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listRooms } from "@/lib/scan/service";
-import { resolveCaller } from "@/lib/scan/http";
+import { resolveScanCallerContext } from "@/lib/scan/http";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * `room` is the sheet's room name and timeslot, e.g. "DH 2210, 7:00 - 7:35pm".
  */
 export async function GET() {
-  const caller = await resolveCaller();
+  const caller = await resolveScanCallerContext();
   if (caller instanceof NextResponse) return caller;
   const result = await listRooms(caller.sheet);
   if ("error" in result) {

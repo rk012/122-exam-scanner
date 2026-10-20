@@ -39,7 +39,7 @@ export const FLAGS: Record<FlagCode, FlagText> = {
     body: "This exam number is not in tonight's sheet, in any room.",
     action: "Set aside for a head TA (misread digit or packet from another night)",
   },
-  duplicate: {
+  "duplicate": {
     title: "Not found or found twice",
     body: "This exam number appears on more than one row.",
     action: "Hand to a head TA",
@@ -61,19 +61,19 @@ export interface RoomRef {
 /** Result of a lookup: either a candidate for the human confirm step, or a flag. */
 export type ScanOutcome =
   | {
-      status: "match";
-      examNumber: string;
-      andrewId: string;
-      room: RoomRef;
-    }
+    status: "match";
+    examNumber: string;
+    andrewId: string;
+    room: RoomRef;
+  }
   | {
-      status: "flagged";
-      code: FlagCode;
-      flag: FlagText;
-      examNumber: string;
-      /** For wrong-room only: where the packet belongs. Never student data. */
-      belongsTo?: RoomRef;
-    };
+    status: "flagged";
+    code: FlagCode;
+    flag: FlagText;
+    examNumber: string;
+    /** For wrong-room only: where the packet belongs. Never student data. */
+    belongsTo?: RoomRef;
+  };
 
 /** Result of a confirm: the write happened, or it was refused with a flag. */
 export type ConfirmOutcome =

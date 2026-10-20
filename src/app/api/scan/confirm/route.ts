@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readScanBody, resolveCaller } from "@/lib/scan/http";
+import { readScanBody, resolveScanCallerContext } from "@/lib/scan/http";
 import { confirmScan } from "@/lib/scan/service";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * 200 { status: "flagged", ... }   (nothing written)
  */
 export async function POST(req: Request) {
-  const caller = await resolveCaller();
+  const caller = await resolveScanCallerContext();
   if (caller instanceof NextResponse) return caller;
   const body = await readScanBody(req);
   if (body instanceof NextResponse) return body;

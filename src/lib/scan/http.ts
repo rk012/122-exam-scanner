@@ -25,7 +25,7 @@ export function apiError(code: ApiErrorCode, message: string, status: number) {
   return NextResponse.json({ error: code, message }, { status });
 }
 
-export interface Caller {
+export interface ScanCallerContext {
   sheet: CheckinSheet;
 }
 
@@ -33,7 +33,7 @@ export interface Caller {
  * Resolves the calling proctor and an allowlisted sheet handle, or an error
  * response. Order matters: identity, permission, then configuration.
  */
-export async function resolveCaller(): Promise<Caller | NextResponse> {
+export async function resolveScanCallerContext(): Promise<ScanCallerContext | NextResponse> {
   const session = await auth();
   if (!session?.user?.andrewId) {
     return apiError("unauthenticated", "Sign in with your Andrew account.", 401);

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { auth } from "@/auth";
 import { getDb } from "@/db";
 import { getActiveSheet, spreadsheetUrl, type ActiveSheet } from "@/lib/config/activeSheet";
 import { env } from "@/lib/env";
@@ -7,36 +6,14 @@ import { getGoogleAccess } from "@/lib/google/access";
 import { createGoogleSheetsApi, describeLayout, openCheckinSheet, type RoomBlock } from "@/lib/sheets";
 import { listProctors } from "@/lib/users/proctors";
 import { ActiveSheetForm, ClearActiveSheetButtons } from "./ActiveSheetForm";
+import { superadminGate } from "./gate";
 import { ProctorsSection } from "./ProctorsSection";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const session = await auth();
-  if (!session?.user) {
-    return (
-      <p className="text-sm">
-        <Link href="/" className="underline">
-          Sign in
-        </Link>{" "}
-        to continue.
-      </p>
-    );
-  }
-  if (session.user.role !== "superadmin") {
-    return (
-      <p role="alert" className="text-sm">
-        Only superadmins can use the admin page.
-      </p>
-    );
-  }
-  if (!env.hasDatabaseUrl) {
-    return (
-      <p role="alert" className="text-sm">
-        No database is configured on this deployment.
-      </p>
-    );
-  }
+  const denied = await superadminGate();
+  if (denied) return denied;
 
   const db = getDb();
   const [rows, active] = await Promise.all([listProctors(db), getActiveSheet(db)]);
@@ -46,7 +23,12 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-8">
-      <h1 className="text-2xl font-semibold">Admin</h1>
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <Link href="/admin/logs" className="text-sm font-medium underline">
+          Scan log
+        </Link>
+      </div>
 
       <section className="flex flex-col gap-4">
         <div>

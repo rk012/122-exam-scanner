@@ -178,6 +178,12 @@ needs the new table, and again whenever a migration is added.
   who also scans adds themselves to the proctor list. A signed-in account not
   on the list sees "Not authorized" on the home page.
 
+`/admin/logs` (also superadmins only) is the **scan log**: every row of
+`scan_events`, newest first, 100 per page, filterable by exam number, room
+code and TA. Clicking an exam number traces that exam across rooms and TAs.
+Times are shown in Pittsburgh time. Who actually ticked a box is also in the
+sheet's own edit history for that cell.
+
 ## Scan API
 
 Backend for scanning clients. All routes require the session cookie of a
@@ -209,7 +215,8 @@ are skipped by the sheets layer, so an Accom exam number comes back as
 `not-in-sheet`.
 
 Every lookup and confirm appends a row to `scan_events` (exam number, room, TA
-Andrew ID, action, outcome, time). Nothing reads it to make decisions.
+Andrew ID, action, outcome, time). Nothing reads it to make decisions; it is
+only shown on the `/admin/logs` page.
 
 ## QA vs Prod
 

@@ -8,7 +8,7 @@ import type { Db } from "@/db";
 import { createTestDb } from "@/db/testing/testDb";
 import { openCheckinSheet } from "@/lib/sheets";
 import { createFakeSheetsApi, gridFromCsv } from "@/lib/sheets/testing/fakeSheetsApi";
-import { traceExam } from "./log";
+import { listScanEvents } from "./log";
 import { confirmScan, listRooms, lookupScan } from "./service";
 
 const TAB = "Exam 1";
@@ -71,11 +71,18 @@ it("matches, flags, writes one box per confirm, and logs every scan", async () =
   expect(writes()).toHaveLength(1);
 
   // The log records every attempt, newest first, and why nothing was written.
-  expect((await traceExam(db, "101")).map((e) => [e.action, e.outcome, e.taAndrewId, e.roomCode])).toEqual([
+  const trace = (examNumber: string) => listScanEvents(db, { examNumber });
+  expect((await trace("101")).map((e) => [e.action, e.outcome, e.taAndrewId, e.roomCode])).toEqual([
     ["confirm", "already-collected", "headta", "A1"],
     ["confirm", "checked", "headta", "A1"],
     ["lookup", "match", "headta", "A1"],
   ]);
-  expect((await traceExam(db, "201"))[1]).toMatchObject({ action: "lookup", detail: "belongs to C1" });
-  expect((await traceExam(db, "105"))[0].detail).toMatch(/^write refused: /);
+  expect((await trace("201"))[1]).toMatchObject({ action: "lookup", detail: "belongs to C1" });
+  expect((await trace("105"))[0].detail).toMatch(/^write refused: /);
+
+  // The admin log pages through the same trace.
+  const firstPage = await listScanEvents(db, { examNumber: "101", limit: 2 });
+  expect((await listScanEvents(db, { examNumber: "101", beforeId: firstPage[1].id })).map((e) => e.outcome)).toEqual([
+    "match",
+  ]);
 });

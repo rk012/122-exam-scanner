@@ -30,7 +30,14 @@ it("matches, flags, writes one box per confirm, and logs every scan", async () =
   // Proctor picks a room. Accom and Makeup are not offered.
   const rooms = await listRooms(sheet);
   expect("rooms" in rooms && rooms.rooms.map((r) => r.code)).toEqual(["A1", "B1", "C1", "A2", "B2", "C2"]);
-  expect("rooms" in rooms && rooms.rooms[0]).toEqual({ code: "A1", room: "DH 2210, 7:00 - 7:35pm", capacity: 124 });
+  expect("rooms" in rooms && rooms.tab).toBe(TAB);
+  expect("rooms" in rooms && rooms.rooms[0]).toEqual({
+    code: "A1",
+    room: "DH 2210, 7:00 - 7:35pm",
+    name: "DH 2210",
+    timeslot: "7:00 - 7:35pm",
+    capacity: 124,
+  });
 
   // A row with a garbage Andrew ID, added after the template was copied.
   Object.assign(grid[9], { 2: "not an id!", 3: "B", 4: 104 }); // A1 block, row 10
@@ -50,7 +57,7 @@ it("matches, flags, writes one box per confirm, and logs every scan", async () =
     "not-in-sheet",
   ]);
   expect(outcomes[4]).toMatchObject({ belongsTo: { code: "C1", room: "GHC 4401, 7:00 - 7:35pm" } });
-  expect(outcomes[2]).toMatchObject({ flag: { title: "No Andrew ID on the row" } });
+  expect(outcomes[2]).toMatchObject({ flag: { title: "No Andrew ID on the row", action: expect.stringMatching(/ID card/) } });
   expect(writes()).toHaveLength(0); // lookups never write
   expect(JSON.stringify(outcomes)).not.toMatch(/SECRET/); // no names, notes or seats leak
 

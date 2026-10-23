@@ -6,13 +6,15 @@ import { getDb } from "@/db";
 import {
   clearActiveSheet,
   clearActiveTab,
+  getActiveSheet,
   isTemplateTab,
   parseSpreadsheetId,
   setActiveSheet,
+  spreadsheetUrl,
   TEMPLATE_TAB,
 } from "@/lib/config/activeSheet";
 import { getGoogleAccess } from "@/lib/google/access";
-import { createGoogleSheetsApi, openCheckinSheet } from "@/lib/sheets";
+import { createGoogleSheetsApi, describeLayout, openCheckinSheet, type RoomBlock } from "@/lib/sheets";
 import { addProctors, listProctors, parseAndrewIdInput, removeProctor } from "@/lib/users/proctors";
 
 async function requireSuperadmin(): Promise<void> {
@@ -22,8 +24,8 @@ async function requireSuperadmin(): Promise<void> {
   }
 }
 
-// The proctor actions return the updated list instead of revalidating /admin:
-// re-rendering the page would also re-read the active sheet from Google.
+// The proctor actions return the updated list instead of revalidating /admin,
+// so an edit doesn't re-render the rest of the page.
 
 async function proctorIds(): Promise<string[]> {
   return (await listProctors(getDb())).map((p) => p.andrewId);
@@ -116,4 +118,54 @@ export async function clearActiveSheetAction(): Promise<void> {
   await requireSuperadmin();
   await clearActiveSheet(getDb());
   revalidatePath("/admin");
+}
+
+export type SheetDetails =
+  | {
+    reachable: true;
+    title: string | null;
+    /** Link straight to the tab, when its gid is known. */
+    tabUrl: string | null;
+    /** `null` when no tab is set. */
+    rooms: RoomBlock[] | null;
+    problem: string | null;
+  }
+  | { reachable: false; message: string };
+
+/**
+ * Live title, tab and rooms of the active sheet, read as this superadmin.
+ * Run on demand from /admin rather than on page load, since it calls Sheets.
+ */
+export async function loadActiveSheetDetailsAction(): Promise<SheetDetails> {
+  const session = await auth();
+  if (session?.user?.role !== "superadmin") {
+    return { reachable: false, message: "Only superadmins can read the active sheet." };
+  }
+  const active = await getActiveSheet(getDb());
+  if (!active) return { reachable: false, message: "No active sheet is set." };
+  const google = await getGoogleAccess();
+  if (!google.ok) {
+    return { reachable: false, message: "Sign in again and allow spreadsheet access to see its name and rooms." };
+  }
+  const api = createGoogleSheetsApi({ getAccessToken: async () => google.accessToken });
+  if (active.tab === null) {
+    try {
+      const info = await api.getInfo(active.spreadsheetId);
+      return { reachable: true, title: info.title || null, tabUrl: null, rooms: null, problem: null };
+    } catch (e) {
+      return { reachable: false, message: `Spreadsheet unreachable: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+  const sheet = openCheckinSheet({ api, spreadsheetId: active.spreadsheetId, tab: active.tab });
+  const [info, result] = await Promise.all([sheet.info().catch(() => null), sheet.reloadLayout()]);
+  if (!result.reachable) return { reachable: false, message: `Spreadsheet ${result.summary}` };
+  const tab = active.tab.toLowerCase();
+  const gid = info?.tabs.find((t) => t.title.toLowerCase() === tab)?.gid;
+  return {
+    reachable: true,
+    title: info?.title || null,
+    tabUrl: gid === undefined ? null : spreadsheetUrl(active.spreadsheetId, gid),
+    rooms: result.layout.blocks,
+    problem: result.layout.ok ? null : describeLayout(result.layout),
+  };
 }

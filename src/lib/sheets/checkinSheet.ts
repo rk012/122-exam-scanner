@@ -14,13 +14,6 @@ import {
   type RoomBlock,
 } from "./layout";
 
-export class SpreadsheetNotAllowedError extends Error {
-  constructor(public readonly spreadsheetId: string) {
-    super(`Spreadsheet ${spreadsheetId} is not on the allowlist; refusing to contact it`);
-    this.name = "SpreadsheetNotAllowedError";
-  }
-}
-
 export class LayoutMismatchError extends Error {
   constructor(public readonly layout: LayoutResult) {
     super(`Check-in tab layout does not match TEMPLATE: ${describeLayout(layout)}`);
@@ -60,8 +53,6 @@ export interface OpenCheckinSheetOptions {
   spreadsheetId: string;
   /** Title of the tab (a copy of TEMPLATE) for tonight's exam. */
   tab: string;
-  /** Head-TA configured allowlist. Any other ID is refused before a request goes out. */
-  allowedSpreadsheetIds: Iterable<string>;
 }
 
 export interface CheckinSheet {
@@ -146,10 +137,6 @@ const knownRows = new Map<string, { rows: CheckinRow[]; fetchedAt: number }>();
 export const ROW_CACHE_TTL_MS = 60_000;
 
 export function openCheckinSheet(opts: OpenCheckinSheetOptions): CheckinSheet {
-  const allowed = new Set(opts.allowedSpreadsheetIds);
-  if (!allowed.has(opts.spreadsheetId)) {
-    throw new SpreadsheetNotAllowedError(opts.spreadsheetId);
-  }
   const { api, spreadsheetId, tab } = opts;
   const key = `${spreadsheetId}\n${tab}`;
 

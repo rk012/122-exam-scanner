@@ -11,8 +11,8 @@ export const proctors = pgTable("proctors", {
 export type Proctor = typeof proctors.$inferSelect;
 
 /**
- * Singleton app configuration edited by superadmins. The active spreadsheet is
- * also the entire spreadsheet allowlist: the sheets layer refuses any other ID.
+ * Singleton app configuration edited by superadmins: the spreadsheet and tab
+ * the scanner reads and writes.
  */
 export const appConfig = pgTable("app_config", {
   id: text("id").primaryKey(), // always "active"

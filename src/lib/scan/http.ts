@@ -86,8 +86,8 @@ export async function readScanBody(req: Request): Promise<ScanRequestBody | Next
   if (examNumber.length === 0 || examNumber.length > 32) {
     return apiError("bad-request", "examNumber must be a non-empty string.", 400);
   }
-  if (!/^[A-Z]\d{1,2}$/.test(roomCode)) {
-    return apiError("bad-request", "roomCode must be a room code like A1.", 400);
+  if (roomCode.length === 0 || roomCode.length > 32) {
+    return apiError("bad-request", "roomCode must be a non-empty string.", 400);
   }
   return { examNumber, roomCode };
 }

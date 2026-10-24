@@ -57,7 +57,7 @@ it("matches, flags, writes one box per confirm, and logs every scan", async () =
     "not-in-sheet",
   ]);
   expect(outcomes[4]).toMatchObject({ belongsTo: { code: "C1", room: "GHC 4401, 7:00 - 7:35pm" } });
-  expect(outcomes[2]).toMatchObject({ flag: { title: "No Andrew ID on the row", action: expect.stringMatching(/ID card/) } });
+  expect(outcomes[2]).toMatchObject({ flag: { title: "No Andrew ID on the row" } });
   expect(writes()).toHaveLength(0); // lookups never write
   expect(JSON.stringify(outcomes)).not.toMatch(/SECRET/); // no names, notes or seats leak
 

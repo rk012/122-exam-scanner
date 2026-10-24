@@ -190,7 +190,7 @@ sheet (spreadsheet and tab) set at `/admin`. Errors are `{ error, message }` wit
 | Route | Body | Returns |
 |---|---|---|
 | `GET /api/scan/rooms` | | `{ tab, rooms: [{ code, room, name, timeslot, capacity }] }` from the active tab's layout; `room` is e.g. `"DH 2210, 7:00 - 7:35pm"`, `name` and `timeslot` its two halves |
-| `POST /api/scan/lookup` | `{ examNumber, roomCode }` | `{ status: "match", examNumber, andrewId, room }` or `{ status: "flagged", code, flag: { title, body, action }, examNumber, belongsTo? }`. Writes nothing. |
+| `POST /api/scan/lookup` | `{ examNumber, roomCode }` | `{ status: "match", examNumber, andrewId, room }` or `{ status: "flagged", code, flag: { title, body }, examNumber, belongsTo? }`. Writes nothing. |
 | `POST /api/scan/confirm` | `{ examNumber, roomCode }` | `{ status: "checked", ... }` after ticking exactly one Got paper box as the TA, or `{ status: "flagged", ... }` with nothing written |
 
 Flow: pick a room from `rooms`, `lookup` each QR, show the proctor the exam
@@ -200,8 +200,8 @@ comes back as `already-collected` rather than being overwritten.
 
 Flag codes, in the order they are checked: `not-in-sheet`, `duplicate`,
 `wrong-room` (with `belongsTo`), `no-andrew-id`, `row-malformed`,
-`already-collected`. Each flag's title, body and action (what to do with the
-packet) are in `src/lib/scan/outcome.ts`.
+`already-collected`. Each flag's title and body are in
+`src/lib/scan/outcome.ts`.
 
 There is no section check: a row's room block already reflects permanent and
 one-time swaps, so the wrong-room check is the authoritative one. Accom blocks

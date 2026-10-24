@@ -4,6 +4,7 @@ import { QaBadge } from "@/components/QaBadge";
 import { getDb } from "@/db";
 import { env } from "@/lib/env";
 import { isProctor } from "@/lib/users/proctors";
+import { RoomPicker } from "./RoomPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -24,40 +25,42 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   if (session?.user) {
     const { andrewId, role } = session.user;
-
-    if (role === "superadmin") {
-      return (
-        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-          <SignedIn andrewId={andrewId} />
-          <Link
-            href="/admin"
-            className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-          >
-            Admin
-          </Link>
-        </div>
-      );
-    }
+    const isSuperadmin = role === "superadmin";
 
     // Without a database nobody is on the list, which matches the fallback of
     // checking boxes in the sheet by hand.
     const onProctorList = env.hasDatabaseUrl && (await isProctor(getDb(), andrewId));
-    if (onProctorList) {
+
+    if (!onProctorList && !isSuperadmin) {
       return (
         <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-          <SignedIn andrewId={andrewId} />
+          <div>
+            <h1 className="text-2xl font-semibold">Not authorized</h1>
+            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+              <span className="font-mono">{andrewId}</span> is not a registered TA.
+            </p>
+          </div>
         </div>
       );
     }
 
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Not authorized</h1>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-            <span className="font-mono">{andrewId}</span> is not on the proctor list.
+        {isSuperadmin && (
+          <Link
+            href="/admin"
+            className="self-start rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            Admin
+          </Link>
+        )}
+        {onProctorList ? (
+          <RoomPicker />
+        ) : (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            To scan, add yourself to the proctor list on the admin page.
           </p>
-        </div>
+        )}
       </div>
     );
   }
@@ -71,7 +74,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <QaBadge />
       </div>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Use your Andrew Google account. Only andrew.cmu.edu accounts are accepted.
+        Use your Andrew Google account.
       </p>
       {errorMessage && (
         <p
@@ -114,15 +117,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <li>Your Andrew ID, exam numbers you scan, and timestamps.</li>
         </ul>
       </div>
-    </div>
-  );
-}
-
-function SignedIn({ andrewId }: { andrewId: string }) {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold">Signed in</h1>
-      <p className="mt-1 font-mono text-sm text-neutral-600 dark:text-neutral-400">{andrewId}</p>
     </div>
   );
 }

@@ -280,7 +280,6 @@ function FlagCard({ flagged, at, onContinue }: { flagged: Flagged; at: Date; onC
           {flagged.belongsTo.room}
         </p>
       )}
-      <p className="text-sm font-semibold">{flagged.flag.action}</p>
       <button
         type="button"
         onClick={onContinue}

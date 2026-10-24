@@ -37,8 +37,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div>
             <h1 className="text-2xl font-semibold">Not authorized</h1>
             <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              <span className="font-mono">{andrewId}</span> is not on the proctor list. Ask a head TA to
-              add you, or tick boxes in the sheet directly.
+              <span className="font-mono">{andrewId}</span> is not a registered TA.
             </p>
           </div>
         </div>
@@ -75,7 +74,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <QaBadge />
       </div>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Use your Andrew Google account. Only andrew.cmu.edu accounts are accepted.
+        Use your Andrew Google account.
       </p>
       {errorMessage && (
         <p

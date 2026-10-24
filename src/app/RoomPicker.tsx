@@ -57,12 +57,6 @@ export function RoomPicker() {
             </ul>
           </section>
         ))}
-
-      {result?.ok && (
-        <p className="text-xs text-neutral-500">
-          Packets that belong to any other room or timeslot are flagged, not checked.
-        </p>
-      )}
     </div>
   );
 }

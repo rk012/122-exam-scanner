@@ -22,7 +22,7 @@ type Step =
   | { kind: "match"; match: Match }
   | { kind: "flagged"; flagged: Flagged; at: Date };
 
-/** One line of the recent-scans list. Held in memory only, never stored on the phone. */
+/** One line of the recent-scans list. */
 interface RecentScan {
   id: number;
   examNumber: string;
@@ -212,7 +212,7 @@ function confirmFailure(e: ApiError): ApiError {
   if (e.error !== "network" && e.error !== "server") return e;
   return {
     ...e,
-    message: "Couldn't tell whether the box was checked. Tap ✓ again: if the first try went through, it will say Already collected.",
+    message: "An error occurred, try again.",
   };
 }
 
@@ -237,7 +237,7 @@ function ConfirmMatch(props: {
           <dd className="break-all font-mono text-4xl font-semibold">{match.andrewId}</dd>
         </div>
       </dl>
-      <p className="text-base font-medium">Does that Andrew ID match the packet?</p>
+      <p className="text-base font-medium">Confirm that the Andrew ID matches</p>
       {error && <ScanApiErrorNotice error={error} />}
       <div className="grid grid-cols-[1fr_2fr] gap-3">
         <button
@@ -257,7 +257,6 @@ function ConfirmMatch(props: {
           {pending ? "Checking…" : "✓ Check the box"}
         </button>
       </div>
-      <p className="text-xs text-neutral-500">Skip writes nothing to the sheet.</p>
     </section>
   );
 }
@@ -269,7 +268,7 @@ function FlagCard({ flagged, at, onContinue }: { flagged: Flagged; at: Date; onC
       className="flex flex-col gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-5 text-amber-950 dark:bg-amber-950 dark:text-amber-100"
     >
       <p className="text-xs font-medium uppercase tracking-wide">
-        Flagged · nothing written · {formatTime(at)}
+        Flagged · {formatTime(at)}
       </p>
       <p className="font-mono text-2xl font-semibold">{flagged.examNumber}</p>
       <h2 className="text-xl font-semibold">{flagged.flag.title}</h2>
@@ -319,7 +318,6 @@ function RecentScans({ scans }: { scans: RecentScan[] }) {
           );
         })}
       </ul>
-      <p className="mt-2 text-xs text-neutral-500">Shown on this page only. The full log is kept on the server.</p>
     </section>
   );
 }

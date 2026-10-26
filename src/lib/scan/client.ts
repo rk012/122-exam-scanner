@@ -3,7 +3,7 @@
  * body or an error the UI can show; none of them throw.
  */
 
-import type { RoomOption } from "./outcome";
+import type { ConfirmOutcome, RoomOption, ScanOutcome } from "./outcome";
 
 export interface ApiError {
   /** An `ApiErrorCode` from ./http, or `network` / `server` when the response had no error body. */
@@ -53,4 +53,18 @@ export interface RoomsResponse {
 
 export function fetchRooms(): Promise<ApiResult<RoomsResponse>> {
   return call("/api/scan/rooms");
+}
+
+function post<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+  return call(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+/** Runs every check for the packet. Writes nothing. */
+export function lookupExam(examNumber: string, roomCode: string): Promise<ApiResult<ScanOutcome>> {
+  return post("/api/scan/lookup", { examNumber, roomCode });
+}
+
+/** Re-runs every check, then ticks the packet's Got paper box as this TA. */
+export function confirmExam(examNumber: string, roomCode: string): Promise<ApiResult<ConfirmOutcome>> {
+  return post("/api/scan/confirm", { examNumber, roomCode });
 }

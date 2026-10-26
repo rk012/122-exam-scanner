@@ -5,9 +5,10 @@ row on the check-in Google Sheet, and tick exactly one checkbox as the TA's own
 Google account. Full spec lives in the wiki under
 `projects/122-exam-checkin-scanner`.
 
-**Status:** skeleton. Today the app has Google sign-in restricted to Andrew
-accounts, a proctor allowlist that gates access, and a superadmin page for
-managing it.
+**Status:** proctors can pick a room and check packets in by typing the exam
+number; camera/QR scanning is not built yet. Sign-in is restricted to Andrew
+accounts, a proctor allowlist gates scanning, and superadmins manage the
+active sheet and the allowlist at `/admin`.
 
 ## Stack
 
@@ -210,6 +211,27 @@ are skipped by the sheets layer, so an Accom exam number comes back as
 
 Every lookup and confirm appends a row to `scan_events` (exam number, room, TA
 Andrew ID, action, outcome, time). Nothing reads it to make decisions.
+
+## Scanning UI
+
+The browser side of the API above (`src/lib/scan/client.ts` wraps the calls).
+
+1. **Pick your room** (`/`, proctors only): the active tab's rooms grouped by
+   timeslot, read live from the sheet. A superadmin who is also on the
+   proctor list sees this plus the Admin link.
+2. **Scan** (`/scan/<room code>`): type an exam number and look it up. A
+   match shows the exam number and Andrew ID large: **✓ Check the box** calls
+   `confirm`, **✕ Skip** writes nothing. A flag shows its title, body and
+   action, plus where the packet belongs for `wrong-room`. Typed entry stands
+   in for the camera until QR scanning is built.
+3. **Recent scans:** the last five outcomes on this page, in memory only, so
+   nothing about students is stored on the phone.
+
+API errors show the one way out that fixes them: **Sign in again** for an
+expired or missing Google grant, otherwise **Try again**. A confirm that fails
+in transit may still have written the box, so the page tells the proctor to
+tap ✓ again; `confirm` re-checks first, so a write that went through comes
+back as `already-collected`.
 
 ## QA vs Prod
 

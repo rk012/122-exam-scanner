@@ -6,7 +6,7 @@
 import type { Db } from "@/db";
 import type { CheckinSheet, ExamLookup, RoomBlock } from "@/lib/sheets";
 import { recordScanEvent } from "./log";
-import { flagged, type ConfirmOutcome, type RoomRef, type ScanOutcome } from "./outcome";
+import { flagged, type ConfirmOutcome, type RoomOption, type RoomRef, type ScanOutcome } from "./outcome";
 
 const ANDREW_ID_RE = /^[a-z0-9]{1,32}$/;
 
@@ -108,10 +108,16 @@ export async function confirmScan(ctx: ScanContext, examNumber: string): Promise
   return { status: "checked", examNumber: outcome.examNumber, andrewId: outcome.andrewId, room: outcome.room };
 }
 
-/** Rooms a proctor can pick from, straight from the sheet's layout. */
-export async function listRooms(sheet: CheckinSheet): Promise<{ rooms: (RoomRef & { capacity: number | null })[] } | { error: string }> {
+/**
+ * Rooms a proctor can pick from, straight from the sheet's layout, plus the
+ * tab name (tonight's exam, e.g. "Exam 1").
+ */
+export async function listRooms(sheet: CheckinSheet): Promise<{ tab: string; rooms: RoomOption[] } | { error: string }> {
   const result = await sheet.reloadLayout();
   if (!result.reachable) return { error: result.error };
   if (!result.layout.ok) return { error: result.summary };
-  return { rooms: result.layout.blocks.map((b) => ({ ...roomRef(b), capacity: b.capacity })) };
+  return {
+    tab: sheet.tab,
+    rooms: result.layout.blocks.map((b) => ({ ...roomRef(b), name: b.name, timeslot: b.timeslot, capacity: b.capacity })),
+  };
 }

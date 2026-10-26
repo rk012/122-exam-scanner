@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  * POST /api/scan/lookup  { examNumber, roomCode }
  * Runs every check and returns what the proctor should see. Writes nothing.
  * 200 { status: "match", examNumber, andrewId, room }
- * 200 { status: "flagged", code, flag: { title, body, action }, examNumber, belongsTo? }
+ * 200 { status: "flagged", code, flag: { title, body }, examNumber, belongsTo? }
  */
 export async function POST(req: Request) {
   const caller = await resolveScanCallerContext();

@@ -27,6 +27,10 @@ export interface RoomBlock {
   index: number;
   /** Room name and timeslot, e.g. "DH 2210, 7:00 - 7:35pm". */
   room: string;
+  /** Row 2's room name alone, e.g. "DH 2210". */
+  name: string;
+  /** Row 2's timeslot alone, e.g. "7:00 - 7:35pm". */
+  timeslot: string;
   /** e.g. "A1". */
   code: string;
   capacity: number | null;
@@ -203,6 +207,8 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
     blocks.push({
       index: blocks.length,
       room: `${name}, ${timeslot}`,
+      name,
+      timeslot,
       code,
       capacity,
       sections,

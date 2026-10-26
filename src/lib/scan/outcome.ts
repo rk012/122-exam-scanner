@@ -49,6 +49,15 @@ export interface RoomRef {
   room: string;
 }
 
+/** A room a proctor can pick, from GET /api/scan/rooms. */
+export interface RoomOption extends RoomRef {
+  /** e.g. "DH 2210". */
+  name: string;
+  /** e.g. "7:00 - 7:35pm". */
+  timeslot: string;
+  capacity: number | null;
+}
+
 /** Result of a lookup: either a candidate for the human confirm step, or a flag. */
 export type ScanOutcome =
   | {

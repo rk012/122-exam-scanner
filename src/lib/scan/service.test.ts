@@ -27,9 +27,9 @@ it("matches, flags, writes one box per confirm, and logs every scan", async () =
   const ctx = { db, sheet, taAndrewId: "headta", roomCode: "A1" };
   const writes = () => api.calls.filter((c) => c.op === "update");
 
-  // Proctor picks a room. Accom and Makeup are not offered.
+  // Proctor picks a room. Accom, Makeup and the unused B1 and A2 are not offered.
   const rooms = await listRooms(sheet);
-  expect("rooms" in rooms && rooms.rooms.map((r) => r.code)).toEqual(["A1", "B1", "C1", "A2", "B2", "C2"]);
+  expect("rooms" in rooms && rooms.rooms.map((r) => r.code)).toEqual(["A1", "C1", "B2", "C2"]);
   expect("rooms" in rooms && rooms.tab).toBe(TAB);
   expect("rooms" in rooms && rooms.rooms[0]).toEqual({
     code: "A1",

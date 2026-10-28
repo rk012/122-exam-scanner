@@ -7,7 +7,7 @@ The app's interfacing layer with the check-in spreadsheet.
 | File | Role |
 |---|---|
 | `api.ts` | `SheetsApi` interface plus a thin `fetch`-based Google Sheets v4 client (`values.batchGet`, `values.update`). Callers pass index-based `SheetRange`s (rows 1-based, columns 0-based); A1 strings are built only here, with tab names always quoted. Takes a bearer-token getter so writes happen as the proctoring TA. |
-| `layout.ts` | Pure parser for header rows 1–6: discovers room blocks and reports layout problems. |
+| `layout.ts` | Pure parser for header rows 1–6: discovers room blocks, skips malformed ones and reports layout problems. |
 | `checkinSheet.ts` | `openCheckinSheet(...)`: `reloadLayout`, `findExam`, `setGotPaper`. |
 | `testing/` | All sheets test code: `sheets.test.ts`, run against an in-memory `SheetsApi` seeded from `testSheet.csv` (a TEMPLATE-shaped tab with a few made-up students). Not imported by app code. |
 
@@ -17,19 +17,25 @@ The app's interfacing layer with the check-in spreadsheet.
 - Rooms are laid out horizontally as blocks. Row 6 holds each block's column
   headers: `First name, Last name, Andrew id, Section, Exam #, Seat #, Got paper, …, Notes`.
   The Makeup and accommodations blocks (row-2 room name `Makeup` / `Accom`)
-  are ignored by name: the app never reads or writes them. Any other header
-  run in row 6 must be a complete check-in block, or it is a layout problem.
+  are ignored by name: the app never reads or writes them.
 - Row 2 of a block: room name at the first column, room code two columns
   right, timeslot three columns right. Row 3 has `capacity: N`; row 4 has
   `Sections: A, B, C` (or `#N/A`) in the block's `Notes` column.
+- A room not used tonight keeps its block, with `unused` typed over its room
+  name and timeslot in row 2.
 - A room is a (room name, timeslot) pair, e.g. `DH 2210, 7:00 - 7:35pm`.
   There is no separate notion of time: the same physical room at two times is
   two rooms, and a repeated pair is a layout problem.
 - Blocks are **discovered by header text**, never by a fixed column stride.
-  Any drift (renamed header, missing room code, duplicate room code) is
-  returned as a layout problem, and lookups refuse to run against a
-  mismatched layout. That is what the setup screen's "layout matches" check
-  reports.
+  Any other header run in row 6 that isn't a well-formed check-in block
+  (renamed or repeated header, no `Notes` at the end, no room name or code,
+  or a timeslot with no time in it, such as `unused`) is **skipped**: it is
+  listed in the layout's `skipped`, never read, and its students can't be
+  found. The other rooms keep working.
+- A **layout problem** makes the whole tab unusable, and lookups refuse to
+  run: two usable blocks share a room code or a (room, timeslot) pair, or no
+  usable block is left. The setup screen's check reports either outcome,
+  e.g. `4 rooms · layout matches · 2 blocks skipped`.
 - Merged cells come back from the API only in their top-left cell; the
   parser does not depend on separator columns being blank.
 
@@ -69,7 +75,9 @@ to the same sheet. Reads may go through any TA's token; writes always use the
 scanning TA's token, so the sheet's edit history names them.
 
 - **Layout:** read once per process. Columns are assumed not to move during
-  an exam; `setGotPaper`'s header check is the backstop if they do.
+  an exam; `setGotPaper`'s header check is the backstop if they do. A layout
+  with skipped blocks is still cached, so a block fixed later comes back only
+  on the next `reloadLayout` (the room picker and setup screen both call it).
 - **Rows:** `findExam` answers from the cache only for a clean hit (one row,
   box unchecked) while the cache is under `ROW_CACHE_TTL_MS` (60 s) old. Any
   error against the cache (not found, duplicate, already checked) refreshes it

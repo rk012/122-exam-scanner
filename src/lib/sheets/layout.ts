@@ -5,12 +5,15 @@
  * has its own header row in row 6 ("First name", "Last name", "Andrew id",
  * "Section", "Exam #", "Seat #", "Got paper", ..., "Notes") and room metadata
  * in rows 2-5 above it. Blocks are discovered by scanning row 6 for that
- * header pattern rather than assuming a fixed column stride, so a tab whose
- * layout drifted from TEMPLATE is reported instead of silently misread.
+ * header pattern rather than assuming a fixed column stride, so a block that
+ * drifted from TEMPLATE is reported instead of silently misread.
  *
  * There is no separate notion of time: a room is a (room name, timeslot)
  * pair, so the same physical room at two times is two rooms. The
  * accommodations ("Accom") and Makeup blocks are skipped entirely, by name.
+ * Any other malformed block, such as a room not used tonight (row 2 reads
+ * "unused" instead of a timeslot), is skipped and listed in `skipped`, and
+ * the remaining blocks are still usable.
  *
  * Nothing in rows 1-6 is student data.
  */
@@ -58,6 +61,9 @@ export interface LayoutProblem {
 export interface LayoutResult {
   ok: boolean;
   blocks: RoomBlock[];
+  /** Header runs left out of `blocks` because they aren't a usable room block. Don't affect `ok`. */
+  skipped: LayoutProblem[];
+  /** Problems with the tab as a whole. Any one makes it unusable. */
   problems: LayoutProblem[];
 }
 
@@ -124,21 +130,22 @@ function headerRuns(row6: unknown[]): Array<{ start: number; headers: string[] }
 /** parses layout from headerRows[col][row], zero based indexing for each */
 export function parseLayout(headerRows: unknown[][]): LayoutResult {
   const problems: LayoutProblem[] = [];
+  const skipped: LayoutProblem[] = [];
   const blocks: RoomBlock[] = [];
 
   if (headerRows.length < HEADER_ROW) {
     problems.push({
       message: `expected at least ${HEADER_ROW} header rows, got ${headerRows.length}`,
     });
-    return { ok: false, blocks, problems };
+    return { ok: false, blocks, skipped, problems };
   }
   const row = (n: number): unknown[] => headerRows[n - 1] ?? [];
   const at = (n: number, c: number): string => cellText(row(n)[c]);
+  const quoted = (hs: readonly string[]) => hs.map((h) => JSON.stringify(h)).join(", ");
 
   for (const run of headerRuns(row(HEADER_ROW))) {
-    // Only the known non-room blocks are skipped, by their row-2 name. Every
-    // other header run must be a valid check-in block, so a drifted block is
-    // reported rather than silently dropped.
+    // The known non-room blocks are dropped silently, by their row-2 name.
+    // Accom must never be read, even though its headers look like a room's.
     if (/^(accom|makeup)\b/i.test(at(2, run.start))) continue;
     const has = (h: string) => run.headers.includes(h);
 
@@ -146,48 +153,32 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
       const i = run.headers.indexOf(h);
       return i === -1 ? undefined : run.start + i;
     };
-    const missing: string[] = REQUIRED_HEADERS.filter((h) => !has(h));
-    if (run.headers[0] !== "first name") missing.unshift("first name");
-    if (missing.length > 0) {
-      problems.push({
-        col: run.start,
-        message: `block starting at column ${columnLetter(run.start)} is missing header(s): ${missing
-          .map((m) => JSON.stringify(m))
-          .join(", ")}`,
-      });
-      continue;
-    }
-    // colOf takes the first match, so a repeated header would silently pick one of the copies.
-    const repeated = REQUIRED_HEADERS.filter((h) => run.headers.indexOf(h) !== run.headers.lastIndexOf(h));
-    if (repeated.length > 0) {
-      problems.push({
-        col: run.start,
-        message: `block starting at column ${columnLetter(run.start)} repeats header(s): ${repeated
-          .map((m) => JSON.stringify(m))
-          .join(", ")}`,
-      });
-      continue;
-    }
     const firstCol = run.start;
     const lastCol = run.start + run.headers.length - 1;
-    if (run.headers[run.headers.length - 1] !== "notes") {
-      problems.push({
-        col: lastCol,
-        message: `block starting at column ${columnLetter(firstCol)} does not end with "Notes"`,
-      });
-    }
-
     const name = at(2, firstCol);
     const code = at(2, firstCol + 2);
     const timeslot = at(2, firstCol + 3);
-    if (name === "") {
-      problems.push({ col: firstCol, message: `block at column ${columnLetter(firstCol)} has no room name in row 2` });
+
+    // Every way this run fails to be a usable room block. Any one skips it.
+    const malformed: string[] = [];
+    const missing: string[] = REQUIRED_HEADERS.filter((h) => !has(h));
+    if (run.headers[0] !== "first name") missing.unshift("first name");
+    if (missing.length > 0) malformed.push(`missing header(s) ${quoted(missing)}`);
+    // colOf takes the first match, so a repeated header would silently pick one of the copies.
+    const repeated = REQUIRED_HEADERS.filter((h) => run.headers.indexOf(h) !== run.headers.lastIndexOf(h));
+    if (repeated.length > 0) malformed.push(`repeats header(s) ${quoted(repeated)}`);
+    if (run.headers[run.headers.length - 1] !== "notes") malformed.push(`does not end with "Notes"`);
+    if (name === "") malformed.push("no room name in row 2");
+    if (code === "") malformed.push("no room code in row 2");
+    // A room not used tonight has a placeholder such as "unused" here; a real
+    // timeslot always has a time in it.
+    if (!/\d/.test(timeslot)) {
+      malformed.push(timeslot === "" ? "no timeslot in row 2" : `timeslot ${JSON.stringify(timeslot)} is not a time`);
     }
-    if (code === "") {
-      problems.push({ col: firstCol + 2, message: `block at column ${columnLetter(firstCol)} has no room code in row 2` });
-    }
-    if (timeslot === "") {
-      problems.push({ col: firstCol + 3, message: `block at column ${columnLetter(firstCol)} has no timeslot in row 2` });
+    if (malformed.length > 0) {
+      const label = code === "" ? "" : ` (${code})`;
+      skipped.push({ col: firstCol, message: `block at column ${columnLetter(firstCol)}${label}: ${malformed.join("; ")}` });
+      continue;
     }
 
     let capacity: number | null = null;
@@ -224,13 +215,15 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
     });
   }
 
-  if (blocks.length === 0 && problems.length === 0) {
-    problems.push({ message: "no check-in room blocks found in row 6" });
+  if (blocks.length === 0) {
+    // Usually every block drifted the same way, so the first one says why.
+    const why = skipped.length > 0 ? `; ${skipped[0].message}` : "";
+    problems.push({ message: `no check-in room blocks found in row 6${why}` });
   }
+  // Skipped blocks aren't rooms, so only usable blocks can collide.
   for (const [what, key] of [["room code", (b: RoomBlock) => b.code], ["room", (b: RoomBlock) => b.room]] as const) {
     const seen = new Map<string, number>();
     for (const b of blocks) {
-      if (key(b) === "") continue;
       const prev = seen.get(key(b));
       if (prev !== undefined) {
         problems.push({ col: b.firstCol, message: `${what} ${key(b)} appears twice (columns ${columnLetter(blocks[prev].firstCol)} and ${columnLetter(b.firstCol)})` });
@@ -238,15 +231,20 @@ export function parseLayout(headerRows: unknown[][]): LayoutResult {
     }
   }
 
-  return { ok: problems.length === 0 && blocks.length > 0, blocks, problems };
+  return { ok: problems.length === 0 && blocks.length > 0, blocks, skipped, problems };
 }
 
-/** Summary line for the head-TA setup screen, e.g. "7 rooms · layout matches". */
+/**
+ * Summary line for the head-TA setup screen, e.g. "7 rooms · layout matches"
+ * or "5 rooms · layout matches · 2 blocks skipped".
+ */
 export function describeLayout(result: LayoutResult): string {
   const n = result.blocks.length;
   const rooms = `${n} room${n === 1 ? "" : "s"}`;
-  if (result.ok) return `${rooms} · layout matches`;
+  const s = result.skipped.length;
+  const skipped = s === 0 ? "" : ` · ${s} block${s === 1 ? "" : "s"} skipped`;
+  if (result.ok) return `${rooms} · layout matches${skipped}`;
   const first = result.problems[0]?.message ?? "unknown problem";
   const more = result.problems.length > 1 ? ` (+${result.problems.length - 1} more)` : "";
-  return `${rooms} · layout mismatch: ${first}${more}`;
+  return `${rooms} · layout mismatch: ${first}${more}${skipped}`;
 }

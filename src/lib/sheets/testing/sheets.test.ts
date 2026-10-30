@@ -43,17 +43,19 @@ afterEach(() => {
 });
 
 describe("check-in sheet", () => {
-  it("discovers one room per (room, timeslot), ignoring Accom and Makeup", async () => {
+  it("discovers one room per (room, timeslot), ignoring Accom, Makeup and unused rooms", async () => {
     const r = await sheet.reloadLayout();
-    expect(r.summary).toBe("reachable · 6 rooms · layout matches");
+    expect(r.summary).toBe("reachable · 4 rooms · layout matches · 2 blocks skipped");
     if (!r.reachable) throw new Error("expected reachable");
     expect(r.layout.blocks.map((b) => [b.code, b.room, b.capacity, b.sections])).toEqual([
       ["A1", "DH 2210, 7:00 - 7:35pm", 124, ["B", "C", "H", "I", "S"]],
-      ["B1", "DH 2315, 7:00 - 7:35pm", 114, null],
       ["C1", "GHC 4401, 7:00 - 7:35pm", 122, ["J", "O", "P", "Q"]],
-      ["A2", "DH 2210, 7:45 - 8:20pm", 124, ["A", "D", "E", "F", "G"]],
       ["B2", "DH 2315, 7:45 - 8:20pm", 114, null],
       ["C2", "GHC 4401, 7:45 - 8:20pm", 122, ["K", "L", "M", "N"]],
+    ]);
+    expect(r.layout.skipped.map((s) => s.message)).toEqual([
+      'block at column J (B1): timeslot "unused" is not a time',
+      'block at column AB (A2): timeslot "unused" is not a time',
     ]);
   });
 
@@ -123,10 +125,21 @@ describe("check-in sheet", () => {
     expect(updates()).toHaveLength(0); // no refusal writes anything
   });
 
-  it("refuses lookups on a sheet whose layout doesn't match", async () => {
-    api.grids.get(TAB)![HEADER_ROW - 1][6] = "Paper"; // A1 block's "Got paper"
-    expect((await sheet.reloadLayout()).summary).toMatch(/^reachable · 5 rooms · layout mismatch: .*"got paper"/);
-    await expect(sheet.findExam("101")).rejects.toBeInstanceOf(LayoutMismatchError);
+  it("skips a drifted block, but refuses lookups when rooms collide", async () => {
+    const grid = api.grids.get(TAB)!;
+    grid[HEADER_ROW - 1][6] = "Paper"; // A1 block's "Got paper"
+    const r = await sheet.reloadLayout();
+    expect(r.summary).toBe("reachable · 3 rooms · layout matches · 3 blocks skipped");
+    expect(r.reachable && r.layout.skipped[0].message).toBe('block at column A (A1): missing header(s) "got paper"');
+    expect((await sheet.findExam("101")).kind).toBe("not-found"); // A1's student
+    expect((await sheet.findExam("201")).kind).toBe("found");
+
+    grid[1][47] = "C1"; // C2 block's room code
+    expect((await sheet.reloadLayout()).summary).toBe(
+      "reachable · 3 rooms · layout mismatch: room code C1 appears twice (columns S and AT) · 3 blocks skipped",
+    );
+    api.calls.length = 0;
+    await expect(sheet.findExam("201")).rejects.toBeInstanceOf(LayoutMismatchError);
     expect(api.calls.flatMap((c) => (c.op === "batchGet" ? c.ranges : [])).every((r) => !r.cols)).toBe(true); // header reads only
   });
 });

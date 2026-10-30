@@ -167,9 +167,10 @@ needs the new table, and again whenever a migration is added.
 
 `/admin` (superadmins only) holds every admin setting:
 
-- **Active sheet:** the spreadsheet and tab the scanner uses. It shows the
-  spreadsheet's name and the tab, both linking to Google Sheets, plus the
-  rooms read live from the tab's layout. Saving first checks reachability and
+- **Active sheet:** the spreadsheet and tab the scanner uses. The page loads
+  without calling Google: it shows the saved spreadsheet link and tab name, and
+  **Fetch rooms** reads the spreadsheet's name, a link to the tab and the
+  rooms live from the tab's layout. Saving first checks reachability and
   the TEMPLATE layout using the superadmin's own Google access. `TEMPLATE`
   itself is refused as the tab name. The tab can be left blank (saved as
   `null`) or cleared later, and **Clear spreadsheet** deletes the config row;
